@@ -94,27 +94,29 @@
 - The schema is demonstrably in 3NF where appropriate, with exceptions justified.
 - No ORM is introduced.
 
-### Stage 4 — Authentication & Account Management
+### Stage 4 — Authentication & Account Management — **complete**
 
 **Objective:** implement safe account access, JWT authentication, profile operations, and server-enforced user isolation.
 
 **Major deliverables:**
 
-- Registration, login, logout, and profile APIs/UI
-- bcrypt password hashing
+- Registration, login, logout, profile, and preferences APIs/UI
+- bcrypt password hashing with constant-time dummy hash verification
 - JWT verification and protected-route middleware
-- Documented token transport, lifetime, refresh/revocation decision
-- Default preference creation
-- Authorization tests covering cross-user access attempts
+- Rotating PostgreSQL-backed refresh sessions in `auth_sessions` with SHA-256 digests and replay detection
+- Default preference creation upon registration
+- Transparent client-side Axios refresh interceptor for protected route recovery
+- Authorization tests covering cross-user access attempts, CSRF defenses, and credential rate limits
 
 **Dependencies:** Stages 2 and 3, environment secrets, finalized user/preference schema.
 
 **Acceptance criteria:**
 
-- Valid registration/login works; duplicates and invalid credentials fail safely.
-- Passwords are never stored or returned in plaintext.
-- Expired/invalid credentials are rejected.
-- One user cannot access another user's protected resources in automated tests.
+- Valid registration/login works; duplicates and invalid credentials fail safely. (Verified)
+- Passwords are never stored or returned in plaintext; bcrypt hashing with cost factor 12 is verified. (Verified)
+- Expired/invalid credentials and revoked sessions are rejected immediately. (Verified)
+- One user cannot access another user's protected resources in automated tests. (Verified)
+
 
 ### Stage 5 — Subscription Management
 

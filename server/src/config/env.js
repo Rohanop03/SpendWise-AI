@@ -1,5 +1,10 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import dotenv from 'dotenv';
 
+const serverDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+dotenv.config({ path: path.join(serverDirectory, '.env'), quiet: true });
 dotenv.config({ quiet: true });
 
 const validNodeEnvironments = new Set(['development', 'test', 'production']);
@@ -74,13 +79,63 @@ function parseBoolean(value, variableName, defaultValue = false) {
   throw new Error(`${variableName} must be true or false.`);
 }
 
+function parseInteger(value, variableName, { defaultValue, maximum, minimum }) {
+  const parsed = Number(value ?? defaultValue);
+
+  if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new Error(`${variableName} must be an integer between ${minimum} and ${maximum}.`);
+  }
+
+  return parsed;
+}
+
+function parseJwtSecret(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (value.length < 32) {
+    throw new Error('JWT_ACCESS_SECRET must contain at least 32 characters.');
+  }
+
+  return value;
+}
+
+function parseJwtExpiration(value) {
+  const expiration = value || '15m';
+
+  if (!/^\d+[smhd]$/.test(expiration)) {
+    throw new Error('JWT_ACCESS_EXPIRES_IN must use a value such as 15m, 1h, or 1d.');
+  }
+
+  return expiration;
+}
+
 export function loadConfig(environment = process.env) {
   return Object.freeze({
     allowDemoSeed: parseBoolean(environment.ALLOW_DEMO_SEED, 'ALLOW_DEMO_SEED'),
+    authRateLimitMax: parseInteger(environment.AUTH_RATE_LIMIT_MAX, 'AUTH_RATE_LIMIT_MAX', {
+      defaultValue: 10,
+      maximum: 1000,
+      minimum: 1,
+    }),
+    bcryptCost: parseInteger(environment.BCRYPT_COST, 'BCRYPT_COST', {
+      defaultValue: 12,
+      maximum: 15,
+      minimum: 10,
+    }),
+    cookieSecure: parseBoolean(environment.COOKIE_SECURE, 'COOKIE_SECURE'),
     corsOrigin: parseCorsOrigin(environment.CORS_ORIGIN),
     databaseUrl: parseDatabaseUrl(environment.DATABASE_URL, 'DATABASE_URL'),
+    jwtAccessExpiresIn: parseJwtExpiration(environment.JWT_ACCESS_EXPIRES_IN),
+    jwtAccessSecret: parseJwtSecret(environment.JWT_ACCESS_SECRET),
     nodeEnv: parseNodeEnvironment(environment.NODE_ENV),
     port: parsePort(environment.PORT),
+    refreshTokenExpiresDays: parseInteger(
+      environment.REFRESH_TOKEN_EXPIRES_DAYS,
+      'REFRESH_TOKEN_EXPIRES_DAYS',
+      { defaultValue: 7, maximum: 30, minimum: 1 },
+    ),
     testDatabaseUrl: parseDatabaseUrl(environment.TEST_DATABASE_URL, 'TEST_DATABASE_URL'),
   });
 }

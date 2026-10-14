@@ -78,8 +78,14 @@ The supported variables are:
 | `DATABASE_URL` | unset | Optional PostgreSQL connection URL |
 | `TEST_DATABASE_URL` | unset | Dedicated `spendwise_test` integration-test URL |
 | `ALLOW_DEMO_SEED` | `false` | Explicit guard for fictional development seeds |
+| `JWT_ACCESS_SECRET` | unset | Secret key of at least 32 characters for signing JWT access tokens |
+| `JWT_ACCESS_EXPIRES_IN` | `15m` | JWT expiration duration (e.g. `15m`, `1h`) |
+| `REFRESH_TOKEN_EXPIRES_DAYS` | `7` | Refresh session duration in days (1–30) |
+| `BCRYPT_COST` | `12` | Bcrypt hashing cost factor (10–15) |
+| `AUTH_RATE_LIMIT_MAX` | `10` | Max auth requests per 15-minute window per IP |
+| `COOKIE_SECURE` | `false` | Set to `false` for localhost development; required `true` in production |
 
-The example `DATABASE_URL` is commented out deliberately. Leave it unset when PostgreSQL is not available. The backend and `/api/v1/health` still work; `/api/v1/health/database` returns HTTP 503 as designed.
+The example `DATABASE_URL` is commented out deliberately. Leave it unset when PostgreSQL is not available. The backend and `/api/v1/health` still work; `/api/v1/health/database` returns HTTP 503 as designed. When starting authentication routes, `JWT_ACCESS_SECRET` is required.
 
 Actual `.env` files are ignored by Git. Commit only `.env.example` files, never local credentials.
 

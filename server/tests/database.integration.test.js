@@ -96,12 +96,13 @@ if (!config.testDatabaseUrl) {
       });
 
       const migrationResult = await runMigrations({ database });
-      assert.deepEqual(migrationResult.applied, ['001_initial_schema']);
+      assert.deepEqual(migrationResult.applied, ['001_initial_schema', '002_auth_sessions']);
     });
 
     beforeEach(async () => {
       await database.query(`
         TRUNCATE TABLE
+          auth_sessions,
           recommendation_subscriptions,
           recommendations,
           notifications,
@@ -130,6 +131,7 @@ if (!config.testDatabaseUrl) {
       const tableNames = tables.rows.map((row) => row.table_name);
 
       for (const requiredTable of [
+        'auth_sessions',
         'categories',
         'notifications',
         'payments',
@@ -179,8 +181,8 @@ if (!config.testDatabaseUrl) {
       const countByType = (type) =>
         constraints.rows.filter((constraint) => constraint.contype === type).length;
 
-      assert.ok(countByType('p') >= 10, 'primary keys should exist');
-      assert.ok(countByType('f') >= 12, 'foreign keys should exist');
+      assert.ok(countByType('p') >= 11, 'primary keys should exist');
+      assert.ok(countByType('f') >= 13, 'foreign keys should exist');
       assert.ok(countByType('c') >= 20, 'check constraints should exist');
       for (const constraintName of [
         'fk_payments_subscription',
@@ -403,7 +405,7 @@ if (!config.testDatabaseUrl) {
     it('tracks migrations, skips reruns, and rolls back an invalid migration', async () => {
       const secondRun = await runMigrations({ database });
       assert.deepEqual(secondRun.applied, []);
-      assert.deepEqual(secondRun.skipped, ['001_initial_schema']);
+      assert.deepEqual(secondRun.skipped, ['001_initial_schema', '002_auth_sessions']);
 
       const initialTracking = await database.query(
         `SELECT checksum FROM schema_migrations WHERE migration_id = $1`,
@@ -420,6 +422,10 @@ if (!config.testDatabaseUrl) {
         await copyFile(
           path.join(defaultMigrationsDirectory, '001_initial_schema.sql'),
           path.join(temporaryDirectory, '001_initial_schema.sql'),
+        );
+        await copyFile(
+          path.join(defaultMigrationsDirectory, '002_auth_sessions.sql'),
+          path.join(temporaryDirectory, '002_auth_sessions.sql'),
         );
         await writeFile(
           path.join(temporaryDirectory, '900_valid_probe.sql'),

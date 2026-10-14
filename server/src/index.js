@@ -1,6 +1,8 @@
-import app from './app.js';
+import { createApp } from './app.js';
 import database from './config/db.js';
 import config from './config/env.js';
+
+const app = createApp();
 
 const server = app.listen(config.port, () => {
   console.info(`SpendWise API listening on http://localhost:${config.port}`);

@@ -4,15 +4,11 @@ import { describe, it } from 'node:test';
 import request from 'supertest';
 
 import { createApp } from '../src/app.js';
-
-const testConfig = {
-  corsOrigin: 'http://localhost:5173',
-  nodeEnv: 'test',
-};
+import { testAppConfig } from './helpers/testConfig.js';
 
 function createTestApp(databaseClient) {
   return createApp({
-    appConfig: testConfig,
+    appConfig: testAppConfig,
     databaseClient,
   });
 }

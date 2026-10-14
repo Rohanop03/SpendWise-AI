@@ -33,7 +33,26 @@ Stores one settings row per user. Its primary key is also a foreign key to `user
 | `trial_reminder_days` | `SMALLINT` | `3` | 0–365 |
 | `updated_at` | `TIMESTAMPTZ` | current timestamp | Last application update |
 
+## `auth_sessions`
+
+Stores active rotating refresh sessions for Stage 4 authentication. Created in migration [`server/db/migrations/002_auth_sessions.sql`](../server/db/migrations/002_auth_sessions.sql). Never stores plaintext refresh tokens; stores only SHA-256 digests.
+
+| Column | Type | Null/default | Rules |
+| --- | --- | --- | --- |
+| `id` | `UUID` | `gen_random_uuid()` | Primary key |
+| `user_id` | `BIGINT` | not null | References `users(id)` with `ON DELETE RESTRICT` |
+| `refresh_token_hash` | `CHAR(64)` | not null | SHA-256 hex string; unique |
+| `expires_at` | `TIMESTAMPTZ` | not null | Must be greater than `created_at` |
+| `revoked_at` | `TIMESTAMPTZ` | nullable | Must be greater than or equal to `created_at` when present |
+| `created_at` | `TIMESTAMPTZ` | current timestamp | Session creation instant |
+| `last_rotated_at` | `TIMESTAMPTZ` | current timestamp | Last refresh token rotation instant |
+
+Indexes:
+- `idx_auth_sessions_user_active`: `(user_id, expires_at) WHERE revoked_at IS NULL` for active session lookups.
+- `idx_auth_sessions_expiry`: `(expires_at) WHERE revoked_at IS NULL` for cleanup evaluation.
+
 ## `categories`
+
 
 Shared reporting catalog. Names are unique regardless of case.
 

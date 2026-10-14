@@ -48,23 +48,23 @@ function HomePage() {
                 Express REST API
               </span>
               <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-slate-200">
-                PostgreSQL-ready
+                PostgreSQL-backed authentication
               </span>
             </div>
           </div>
 
           <aside className="relative rounded-[2rem] border border-white/10 bg-white/[0.055] p-7 shadow-2xl shadow-black/30 backdrop-blur sm:p-9">
             <div className="absolute -right-6 -top-6 size-24 rounded-full bg-emerald-300/15 blur-2xl" />
-            <p className="text-sm font-semibold text-emerald-300">Foundation established</p>
+            <p className="text-sm font-semibold text-emerald-300">Secure accounts implemented</p>
             <h2 className="mt-3 text-2xl font-bold text-white">
-              Stage 2 focuses on the platform beneath the product.
+              Stage 4 protects the user experience from the first request.
             </h2>
             <div className="mt-7 space-y-5">
               {[
-                'A responsive React application shell',
-                'A versioned Express health API',
-                'Safe PostgreSQL connection infrastructure',
-                'Shared quality, testing, and development commands',
+                'Registration and bcrypt password protection',
+                'Short-lived JWT access tokens',
+                'Rotating PostgreSQL-backed refresh sessions',
+                'Protected profile and preference management',
               ].map((item, index) => (
                 <div className="flex gap-4" key={item}>
                   <span className="grid size-8 shrink-0 place-items-center rounded-full border border-emerald-300/30 bg-emerald-300/10 text-sm font-bold text-emerald-200">
@@ -75,7 +75,7 @@ function HomePage() {
               ))}
             </div>
             <p className="mt-8 border-t border-white/10 pt-6 text-sm leading-6 text-slate-400">
-              No accounts, financial records, analytics, or recommendations are implemented yet.
+              Subscription and financial workflows remain planned for their later roadmap stages.
             </p>
           </aside>
         </div>
@@ -91,8 +91,7 @@ function HomePage() {
               What the foundation is designed to support
             </h2>
             <p className="mt-5 text-lg leading-8 text-slate-600">
-              These capabilities are planned for later development stages and are not active
-              features in the current starter application.
+              These product capabilities remain planned for later development stages.
             </p>
           </div>
 

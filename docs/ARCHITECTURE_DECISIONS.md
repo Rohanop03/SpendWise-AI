@@ -161,10 +161,41 @@ The database health endpoint intentionally uses `database: "unavailable"` withou
 
 **Consequences:** Catalog seeding is safe to repeat and does not store service prices. Demo users use reserved `.invalid` domains and a non-login fixture hash; live account creation remains Stage 4.
 
+## ADR-016: Dual-Token Authentication with Rotating Refresh Sessions and Replay Detection
+
+**Status:** Accepted in Stage 4
+
+**Decision:** Use short-lived in-memory JWT access tokens (15 minutes) paired with rotating refresh tokens stored as SHA-256 hashes in a dedicated PostgreSQL `auth_sessions` table. Transmit refresh tokens via HTTP-only, SameSite=Lax cookies scoped to `/api/v1/auth`. Enforce CSRF protection on state-changing auth endpoints through custom headers (`Origin` and `X-Requested-With`). If an already-rotated refresh token hash is presented, immediately revoke the entire session as a replay detection safeguard.
+
+**Rationale:** Short-lived access tokens minimize exposure windows without requiring continuous database hits for every request, while server-side session rows in PostgreSQL retain immediate revocation control upon logout or password change. Storing only SHA-256 hashes of the random 256-bit refresh secrets ensures that a database compromise does not leak live session credentials.
+
+**Consequences:** Access tokens are never stored in localStorage or persistent cookies. The client must handle automatic token renewal through interceptors. A database query verifies session validity and account status when validating tokens.
+
+## ADR-017: Transparent Client Session Recovery with Axios Interceptors
+
+**Status:** Accepted in Stage 4
+
+**Decision:** Implement an Axios response interceptor that catches HTTP 401 responses on protected endpoints (such as `/api/v1/auth/me` and `/api/v1/users/me`), invokes a single shared `/api/v1/auth/refresh` request, updates the in-memory access token, and retries the original request. Explicitly bypass this recovery mechanism for unrefreshable authentication requests (`/auth/login`, `/auth/register`, `/auth/refresh`, and `/auth/logout`) to prevent loops and misleading error reporting.
+
+**Rationale:** Users should remain seamlessly signed in across token expirations without user-facing interruptions, while login credential failures must propagate immediately as 401 errors.
+
+**Consequences:** Parallel requests that encounter 401 share a single inflight refresh promise, preventing duplicate token rotation requests. If the refresh request itself fails, all active auth state is wiped and the user is redirected to sign in.
+
+## ADR-018: Strict Separation of React Context and Hook Exports
+
+**Status:** Accepted in Stage 4
+
+**Decision:** Separate React Context creation (`authContext.js`), custom consumer hooks (`useAuth.js`), and Context Provider components (`AuthContext.jsx`) into isolated modules.
+
+**Rationale:** React Fast Refresh and Vite's ESLint rules (`react-refresh/only-export-components`) require component files to only export React components to enable reliable hot module replacement. Exporting hooks or mutable contexts alongside components invalidates fast refresh boundaries.
+
+**Consequences:** Consumer components import `useAuth` from `useAuth.js` rather than the provider file. Fast refresh operates cleanly without full page reloads during auth state modifications.
+
 ## Deferred Decisions
 
-- JWT transport, refresh, revocation, and protected-route middleware: Stage 4
-- Business validation and ownership-aware repositories: Stages 4–6
+- Business validation and ownership-aware repositories for subscriptions: Stage 5
+- Business validation and ownership-aware repositories for payments: Stage 6
 - Cross-row refund-total enforcement: Stage 6 transactional payment service
 - Row-level security reconsideration and advanced DBMS objects: Stage 11
 - Production hosting, TLS termination, monitoring, backups, and recovery: Stage 12
+

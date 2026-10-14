@@ -2,40 +2,35 @@
 
 > Smart Subscription Tracking & AI-Powered Cost Optimization
 
-SpendWise AI is a full-stack subscription management and cost-optimization project. Stage 4 completes user authentication and account management, delivering atomic registration with bcrypt password hashing, short-lived JWT access tokens, rotating PostgreSQL-backed refresh sessions in `auth_sessions`, HTTP-only cookie transport with CSRF defenses, replay attack detection, transparent client-side session recovery via Axios interceptors, protected user profile and preference management, rate limiting, and cross-user isolation.
+SpendWise AI is a full-stack subscription management and cost-optimization project. Stage 5 delivers the complete Subscription Management System, enabling authenticated users to record, categorize, track, filter, sort, update, pause, reactivate, and soft-archive their recurring subscriptions across web and mobile devices.
 
-The product will eventually help users record subscriptions and payments, understand recurring costs, monitor renewals, and receive explainable optimization suggestions. Stage 4 secures account identities and preferences, establishing the prerequisite foundation for user-owned subscription tracking in Stage 5.
+The product is built on a PostgreSQL relational database with parameterized node-postgres (`pg`) queries, short-lived JWT authentication, strict user isolation, check constraints, catalog service integration, and a responsive React 19 UI.
 
 ## Current Status
 
-**Stage 4 of 12 — User Authentication & Account Management**
+**Stage 5 of 12 — Subscription Management System**
 
 Implemented:
 
-- React 19 / Vite 8 frontend with protected routes, public-only routes, session initialization, and responsive account views
-- Registration and login workflows with client-side validation and accessible password toggle fields
-- Bcrypt password hashing (cost factor 12) with constant-time dummy hash verification preventing email enumeration timing attacks
-- Short-lived JWT access tokens (15m expiration, strictly validated `sub`, `sid`, `iat`, `exp` claims)
-- Rotating PostgreSQL-backed refresh sessions in `auth_sessions` with SHA-256 hash storage (raw tokens never stored)
-- Token reuse / replay attack detection that revokes all compromised sessions immediately
-- HTTP-only, SameSite=Lax cookie transport scoped to `/api/v1/auth` with strict CSRF verification (`Origin` and `X-Requested-With`)
-- Transparent Axios interceptor automatic session recovery on expired access tokens for protected requests (e.g. `/auth/me`, `/users/me`)
-- Account management: profile updates and personal preferences (`/api/v1/users/me`, `/api/v1/users/me/preferences`)
-- Secure password changes revoking all active sessions across all devices
-- Credential rate limiting on registration and login endpoints via `express-rate-limit`
-- Clean separation of React Context (`authContext.js`), custom hooks (`useAuth.js`), and provider components (`AuthContext.jsx`)
-- Vitest unit tests for client authentication and interceptor recovery
-- Isolated PostgreSQL integration tests verifying all auth workflows and constraints on `spendwise_test`
+- **Subscription Management System:** Full CRUD, search, multi-field filtering, sorting, pagination, and lifecycle state management (see [SUBSCRIPTION_MANAGEMENT.md](docs/SUBSCRIPTION_MANAGEMENT.md))
+- **Catalog & Custom Services:** Seamless support for catalog-curated services (Netflix, Spotify, Notion, etc.) and arbitrary user-declared custom services without global catalog pollution (`chk_subscriptions_service_source`)
+- **Lifecycle & Status Transitions:** Tracking of `trial`, `active`, `paused`, and `cancelled` states with synchronized `cancelled_at` timestamps
+- **Deterministic Scheduling Rules:** Database constraints ensuring `next_renewal_date` and `trial_end_date` are mandatory when required and never precede `start_date`
+- **Soft Archival Policy:** Safe deactivation via `archived_at` timestamps preserving referential integrity for future payments (Stage 6) and allowing instant restoration
+- **Responsive React 19 UI:** Desktop table with inline actions, mobile card grid, KPI spend statistics, interactive add/edit forms, and accessible confirmation modals
+- **Multi-Tenant User Isolation:** Parameterized queries strictly bound to verified session user IDs; cross-user access attempts rejected with 404
+- **Dual-Token Authentication (Stage 4):** Bcrypt hashing, short-lived JWT access tokens, rotating PostgreSQL-backed refresh sessions with replay detection, HTTP-only cookies, and CSRF protection
+- **Automated Test Coverage:** 35 backend tests (PostgreSQL integration tests against `spendwise_test` + unit tests) and 20 client Vitest tests (55 total passing tests)
 
-Not implemented yet: subscription CRUD, payment tracking, dashboard analytics, renewal scheduler jobs, notification center, or AI recommendations.
+Not implemented yet: payment tracking (Stage 6), spending analytics & SQL reporting (Stage 7), dashboard integration (Stage 8), renewal reminder workers (Stage 9), or AI optimization (Stage 10).
 
 ## Technology Stack
 
 | Layer | Implemented | Planned later |
 | --- | --- | --- |
-| Frontend | React 19, Vite 8, Tailwind CSS 4, React Router 7, Axios, Vitest, Testing Library | Recharts, subscription forms, and dashboard analytics |
-| Backend | Node.js 22, Express 5, bcrypt, jsonwebtoken, cookie-parser, express-rate-limit, zod, raw `pg` | Domain repositories for subscriptions and payments |
-| Database | PostgreSQL 18.6, raw parameterized SQL with `pg`, migrations `001_initial_schema` and `002_auth_sessions` | Advanced reports, views, and measured DBMS optimization |
+| Frontend | React 19, Vite 8, Tailwind CSS 4, React Router 7, Axios, Vitest, Testing Library | Recharts, spending charts, and notification center |
+| Backend | Node.js 22, Express 5, bcrypt, jsonwebtoken, cookie-parser, express-rate-limit, zod, raw `pg` | Payment repositories, reporting endpoints, notification scheduler |
+| Database | PostgreSQL 18.6, raw parameterized SQL with `pg`, migrations `001_initial_schema` and `002_auth_sessions` | Advanced reports, views, triggers, and measured DBMS optimization |
 | Quality | npm workspaces, ESLint 9, Prettier, Node test runner, Vitest, Supertest, PostgreSQL integration tests | End-to-end browser testing |
 
 No ORM is used. Direct PostgreSQL and SQL are central DBMS objectives.

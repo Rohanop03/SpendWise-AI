@@ -37,6 +37,12 @@ function AppLayout() {
                 <span className="hidden text-slate-400 sm:inline">{user.displayName}</span>
                 <Link
                   className="rounded-full px-3 py-2 text-slate-200 hover:text-white"
+                  to="/subscriptions"
+                >
+                  Subscriptions
+                </Link>
+                <Link
+                  className="rounded-full px-3 py-2 text-slate-200 hover:text-white"
                   to="/account"
                 >
                   Account
@@ -87,7 +93,7 @@ function AppLayout() {
       <footer className="border-t border-white/10 bg-slate-950">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-8 text-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
           <p>SpendWise AI · Smart subscription management, built one stage at a time.</p>
-          <p>Current status: secure account management</p>
+          <p>Current status: subscription management</p>
         </div>
       </footer>
     </div>

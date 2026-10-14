@@ -191,9 +191,38 @@ The database health endpoint intentionally uses `database: "unavailable"` withou
 
 **Consequences:** Consumer components import `useAuth` from `useAuth.js` rather than the provider file. Fast refresh operates cleanly without full page reloads during auth state modifications.
 
+## ADR-019: Subscription Ownership and Multi-Tenant Isolation Pattern
+
+**Status:** Accepted in Stage 5
+
+**Decision:** Enforce multi-tenant subscription isolation exclusively at the PostgreSQL query level by parameterizing the verified authenticated user ID (`WHERE user_id = $1`) on every subscription query, mutating operation, and detail fetch. Reinforce this constraint in the schema via a composite unique key `(user_id, id)`. Never trust client-supplied user identifiers.
+
+**Rationale:** Preventing cross-tenant data leaks and unauthorized state alterations is a fundamental security requirement. Direct parameterization guarantees that missing or altered request headers cannot expose or mutate another user's records.
+
+**Consequences:** Any read, edit, archive, or restore attempt targeting a subscription owned by a different user returns an immediate 404 Not Found error, preventing account enumeration or existence probing.
+
+## ADR-020: Soft Archival Policy with Historical Integrity Preservation
+
+**Status:** Accepted in Stage 5
+
+**Decision:** Implement subscription deletion as soft archival via a timestamped `archived_at` column. Do not perform physical SQL `DELETE` operations on subscription rows. Exclude archived subscriptions from default listings and active cost estimates, but permit users to view, search, and restore them via `/subscriptions/:id/restore`.
+
+**Rationale:** Physical deletions would trigger cascade deletions or violate foreign key constraints on dependent financial transactions (payments and refunds in Stage 6). Soft archival retains historical accounting integrity and allows users to revisit past spending without skewing active renewal reminders.
+
+**Consequences:** Direct updates to archived subscriptions are blocked until restored. Active cost projections explicitly filter for `archived_at IS NULL` and active statuses (`active` or `trial`).
+
+## ADR-021: Mutually Exclusive Service Source Representation
+
+**Status:** Accepted in Stage 5
+
+**Decision:** Enforce strict mutual exclusivity between catalog-backed services (`service_id`) and user-entered custom services (`custom_service_name`) through the database check constraint `chk_subscriptions_service_source` and matching Zod validation refinement. Custom service entries do not create new rows in the global `services` catalog table.
+
+**Rationale:** Shared catalog entries provide normalized references and standardized icons/URLs for popular services. Allowing arbitrary user input to insert into the shared `services` catalog would pollute global reference data and risk cross-tenant tampering.
+
+**Consequences:** The application handles catalog and custom services uniformly in queries through `COALESCE(svc.name, s.custom_service_name) AS service_name`. The frontend provides a clear toggle between catalog selection and custom name input.
+
 ## Deferred Decisions
 
-- Business validation and ownership-aware repositories for subscriptions: Stage 5
 - Business validation and ownership-aware repositories for payments: Stage 6
 - Cross-row refund-total enforcement: Stage 6 transactional payment service
 - Row-level security reconsideration and advanced DBMS objects: Stage 11

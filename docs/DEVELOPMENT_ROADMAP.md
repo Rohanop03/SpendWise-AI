@@ -118,27 +118,29 @@
 - One user cannot access another user's protected resources in automated tests. (Verified)
 
 
-### Stage 5 — Subscription Management
+### Stage 5 — Subscription Management (Completed)
+
+**Status:** Completed in Stage 5 (see [SUBSCRIPTION_MANAGEMENT.md](SUBSCRIPTION_MANAGEMENT.md))
 
 **Objective:** implement owned subscription CRUD and discovery workflows using validated relational data.
 
 **Major deliverables:**
 
-- Service/category retrieval or management policy
-- Subscription create, list, detail, update, and delete/archive APIs
-- Frontend forms, list/detail views, search, and filters
-- Support for active, paused, trial, and cancelled states
-- Monthly, quarterly, and yearly cycle validation
-- Ownership, validation, and referential-integrity tests
+- Reference service and category retrieval endpoints (`/api/v1/categories`, `/api/v1/services`)
+- Full subscription CRUD, detail, partial updates, and soft archival/restoration APIs under `/api/v1/subscriptions`
+- Frontend responsive dashboard, desktop table, mobile cards, search, multi-field filters, and archival confirmation modal
+- Support for active, paused, trial, and cancelled states with synchronized `cancelled_at` timestamps
+- Monthly, quarterly, and yearly cycle validation with normalized monthly cost calculations
+- Multi-tenant user isolation, input validation, and database constraint enforcement verified via 35 server tests and 20 frontend Vitest tests
 
 **Dependencies:** authenticated users, finalized service/category/subscription schema.
 
 **Acceptance criteria:**
 
-- All CRUD paths operate only on the authenticated user's records.
-- Search and combined filters return correct stable results.
-- Invalid prices, currencies, cycles, statuses, and dates fail without partial writes.
-- The selected history-preservation policy is consistently enforced.
+- All CRUD paths operate only on the authenticated user's records. (Verified)
+- Search and combined filters return correct stable results. (Verified)
+- Invalid prices, currencies, cycles, statuses, and dates fail without partial writes. (Verified)
+- The selected history-preservation policy is consistently enforced. (Verified)
 
 ### Stage 6 — Payment Tracking & Billing Management
 

@@ -1,0 +1,34 @@
+{
+  "name": "spendwise-ai",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Full-stack foundation for SpendWise AI",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names client,server --prefix-colors cyan,green \"npm run dev --workspace client\" \"npm run dev --workspace server\"",
+    "dev:client": "npm run dev --workspace client",
+    "dev:server": "npm run dev --workspace server",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspace client",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "engines": {
+    "node": ">=22.13.0",
+    "npm": ">=10.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "concurrently": "^10.0.6",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10"
+  }
+}

@@ -1,45 +1,177 @@
 # SpendWise AI
 
-> Smart Subscription Manager: AI-Powered Subscription Tracking and Cost Optimization
+> Smart Subscription Tracking & AI-Powered Cost Optimization
 
-SpendWise AI is a planned full-stack web application for managing recurring subscriptions in one place. It will help users record subscriptions and payments, monitor renewals, understand recurring spending, and receive explainable cost-optimization suggestions based on their own stored data.
+SpendWise AI is a full-stack subscription management and cost-optimization project. The completed Stage 2 foundation provides a responsive React application, a versioned Express API, real frontend-to-backend health integration, and optional PostgreSQL connection infrastructure.
 
-The project is designed as a university Database Management Systems (DBMS) project and a portfolio application. Its implementation will emphasize relational data modeling, raw PostgreSQL queries, data integrity, meaningful reporting, and maintainable full-stack architecture.
+The broader product will help users record subscriptions and payments, understand recurring costs, monitor renewals, and receive explainable optimization suggestions grounded in their own stored data. Those business capabilities remain planned for later stages and are not represented as implemented today.
 
 ## Current Status
 
-**Stage 1 of 12 — Project Planning & Requirements**
+**Stage 2 of 12 — System Architecture & Project Setup**
 
-This repository currently contains planning documentation only. Application features, APIs, database objects, and user interfaces have not yet been implemented.
+Implemented in this stage:
 
-## Planned Features
+- React 19 application powered by Vite 8
+- Tailwind CSS 4 using its Vite plugin
+- React Router home and not-found routes
+- Reusable Axios client and one-time backend connection check
+- Responsive SaaS-style starter interface with accessible status messaging
+- Express 5 application with `/api/v1` routing
+- Application/process separation and graceful shutdown
+- Backend and database health endpoints
+- Optional lazy PostgreSQL connection pool through `pg`
+- Validated environment configuration, restricted CORS, 404 handling, and centralized error handling
+- npm workspaces with shared development, lint, test, formatting, and build commands
+- Deterministic backend HTTP tests using Node.js test runner and Supertest
 
-- JWT-based registration, login, protected routes, and per-user data isolation
-- Subscription CRUD with categories, billing cycles, lifecycle statuses, and renewal dates
-- Historical and expected payment tracking with distinct payment statuses
-- Monthly and yearly cost estimates with documented billing-cycle normalization
-- Dashboard analytics, category breakdowns, spending trends, and upcoming renewals
-- Configurable in-app renewal and trial-expiration notifications
-- Explainable, rule-based cost-optimization recommendations
-- Optional LLM-generated explanations grounded in stored user data at a later stage
-- DBMS demonstrations using constraints, joins, aggregates, views, indexes, transactions, triggers, stored functions, and query analysis
+Not yet implemented: accounts, authentication, database schema, subscriptions, payments, analytics, reminders, notifications, or AI recommendations.
 
-## Planned Technology Stack
+## Technology Stack
 
-| Layer | Technologies |
+| Layer | Current foundation | Planned later |
+| --- | --- | --- |
+| Frontend | React, Vite, Tailwind CSS, React Router, Axios | Recharts and business feature interfaces |
+| Backend | Node.js, Express, REST API, CORS, environment configuration | JWT, bcrypt, domain services |
+| Database | PostgreSQL connection pooling through raw `pg` | Normalized schema, migrations, reports, advanced DBMS objects |
+| Quality | npm workspaces, ESLint, Prettier, Node test runner, Supertest | Broader integration, component, accessibility, and end-to-end coverage |
+
+No ORM is used or planned. Direct PostgreSQL and SQL work are central DBMS objectives.
+
+## Project Structure
+
+```text
+SpendWise-AI/
+├── client/
+│   ├── src/
+│   │   ├── api/          # Axios client and API functions
+│   │   ├── components/   # Reusable presentation components
+│   │   ├── hooks/        # Reusable React behavior
+│   │   ├── layouts/      # Shared application shell
+│   │   ├── pages/        # Route-level views
+│   │   ├── routes/       # React Router configuration
+│   │   └── styles/       # Tailwind entry point and global styles
+│   ├── .env.example
+│   ├── index.html
+│   ├── package.json
+│   └── vite.config.js
+├── server/
+│   ├── src/
+│   │   ├── config/       # Environment and PostgreSQL configuration
+│   │   ├── controllers/  # HTTP response handlers
+│   │   ├── middleware/   # 404 and centralized error handling
+│   │   ├── routes/       # Versioned API routing
+│   │   ├── services/     # Application health behavior
+│   │   ├── app.js        # Testable Express application
+│   │   └── index.js      # HTTP process lifecycle
+│   ├── tests/
+│   ├── .env.example
+│   └── package.json
+├── docs/
+├── eslint.config.js
+├── package.json
+└── package-lock.json
+```
+
+Only directories with Stage 2 responsibilities are present. Future domain folders should be added when their features are implemented.
+
+## Local Requirements
+
+- Node.js `22.19.0` from `.nvmrc`, or a compatible maintained release satisfying `>=22.13.0`
+- npm `10` or newer
+- Git
+- PostgreSQL is optional until database connectivity is being verified
+
+The current foundation was verified with Node.js `v22.19.0` and npm `10.9.3` on Windows.
+
+## Installation
+
+From the repository root in PowerShell:
+
+```powershell
+npm install
+Copy-Item client\.env.example client\.env
+Copy-Item server\.env.example server\.env
+npm run dev
+```
+
+Open:
+
+- Frontend: `http://localhost:5173`
+- Backend health: `http://localhost:5000/api/v1/health`
+
+The default application runs without PostgreSQL. Keep `DATABASE_URL` commented out when no local database is available.
+
+See the [Windows Local Setup Guide](docs/LOCAL_SETUP.md) for PostgreSQL setup, endpoint verification, and troubleshooting.
+
+## Development Commands
+
+| Command | Purpose |
 | --- | --- |
-| Frontend | React.js, Vite, Tailwind CSS, React Router, Axios, Recharts |
-| Backend | Node.js, Express.js, RESTful APIs, JWT, bcrypt |
-| Database | PostgreSQL, raw SQL through `pg`, migrations, seed scripts |
-| Analytics and AI | SQL analytics, deterministic rule-based recommendations, optional later LLM integration |
-| Quality tooling | ESLint, Prettier, API testing, automated testing tools selected during implementation |
+| `npm install` | Install root, client, and server workspace dependencies |
+| `npm run dev` | Start the frontend and backend together |
+| `npm run dev:client` | Start only Vite on port 5173 |
+| `npm run dev:server` | Start only Express on port 5000 with watch mode |
+| `npm run lint` | Lint both workspaces |
+| `npm run test` | Run backend foundation tests |
+| `npm run format` | Format implementation and configuration files |
+| `npm run format:check` | Check formatting without modifying files |
+| `npm run build` | Build the frontend production bundle |
 
-No ORM is planned because direct SQL and relational database concepts are central learning and demonstration goals.
+## API Endpoints
 
-## Development Roadmap
+All APIs use the `/api/v1` prefix.
 
-1. Project Planning & Requirements — **current stage**
-2. System Architecture & Project Setup
+| Method | Endpoint | Purpose | Database required |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/health` | Verify that Express is running | No |
+| `GET` | `/api/v1/health/database` | Run `SELECT 1` through the PostgreSQL pool | Yes for HTTP 200 |
+
+Successful backend health response:
+
+```json
+{
+  "status": "ok",
+  "service": "spendwise-api"
+}
+```
+
+If PostgreSQL is absent or unavailable, the database endpoint safely returns HTTP 503 without crashing the API or exposing connection details.
+
+## Environment Configuration
+
+Frontend configuration belongs in `client/.env`:
+
+```dotenv
+VITE_API_BASE_URL=http://localhost:5000/api/v1
+```
+
+Backend configuration belongs in `server/.env`:
+
+```dotenv
+NODE_ENV=development
+PORT=5000
+CORS_ORIGIN=http://localhost:5173
+# DATABASE_URL=postgresql://local_user:local_password@localhost:5432/spendwise_dev
+```
+
+Only `.env.example` files are tracked. `VITE_` variables are public browser configuration and must never contain secrets.
+
+## Documentation
+
+- [Project Overview](docs/PROJECT_OVERVIEW.md)
+- [Functional and Non-Functional Requirements](docs/REQUIREMENTS.md)
+- [User Workflows](docs/USER_WORKFLOWS.md)
+- [High-Level System Architecture](docs/SYSTEM_ARCHITECTURE.md)
+- [Preliminary Database Planning](docs/DATABASE_PLANNING.md)
+- [Development Roadmap](docs/DEVELOPMENT_ROADMAP.md)
+- [Stage 2 Architecture Decisions](docs/ARCHITECTURE_DECISIONS.md)
+- [Windows Local Setup Guide](docs/LOCAL_SETUP.md)
+
+## Roadmap
+
+1. Project Planning & Requirements — **complete**
+2. System Architecture & Project Setup — **current stage**
 3. Database Design & PostgreSQL Setup
 4. Authentication & Account Management
 5. Subscription Management
@@ -51,25 +183,11 @@ No ORM is planned because direct SQL and relational database concepts are centra
 11. Advanced DBMS Implementation
 12. Testing, Deployment & Documentation
 
-See the [Development Roadmap](docs/DEVELOPMENT_ROADMAP.md) for objectives, dependencies, deliverables, and acceptance criteria for every stage.
+## Current Boundaries
 
-## Planning Documentation
-
-- [Project Overview](docs/PROJECT_OVERVIEW.md)
-- [Functional and Non-Functional Requirements](docs/REQUIREMENTS.md)
-- [User Workflows](docs/USER_WORKFLOWS.md)
-- [High-Level System Architecture](docs/SYSTEM_ARCHITECTURE.md)
-- [Preliminary Database Planning](docs/DATABASE_PLANNING.md)
-- [Development Roadmap](docs/DEVELOPMENT_ROADMAP.md)
-
-## Important Boundaries
-
-- The initial system uses manually entered subscription and payment data.
-- It does not connect to banks, payment gateways, or subscription providers.
+- Data entry will remain manual in the initial product.
+- The application does not connect to banks or payment providers.
 - It does not make payments or cancel subscriptions.
-- Recommendations are advisory estimates, not guaranteed savings or claims about actual service usage.
-- Cross-currency totals will not be combined without an explicit conversion source and policy; the MVP will present monetary analytics by currency.
-
-## Repository Workflow
-
-Development work is performed incrementally on the `develop` branch. Each stage is reviewed before changes are manually committed and pushed.
+- No database schema, migration, seed, or fabricated financial record exists in Stage 2.
+- Authentication and authorization begin in Stage 4 after the Stage 3 schema is finalized.
+- Recommendations will be advisory estimates and will never claim unobserved usage or guaranteed savings.

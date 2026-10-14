@@ -2,30 +2,31 @@
 
 > Smart Subscription Tracking & AI-Powered Cost Optimization
 
-SpendWise AI is a full-stack subscription management and cost-optimization project. Stage 6 delivers the complete Payment Tracking & Billing Management module, enabling authenticated users to record real historical payments, manage billing periods, log partial/full refunds with concurrency protection, review upcoming and overdue renewals, and analyze recurring costs grouped strictly by currency across web and mobile devices.
+SpendWise AI is a full-stack subscription management and cost-optimization project. Stage 7 delivers the complete Spending Analytics & SQL Reporting engine, enabling authenticated users to analyze historical cash flows, monthly trends, category expense breakdowns, subscription-wise spending, billing cycle distributions, and payment status distributions, backed by raw PostgreSQL queries and strict currency isolation.
 
 The product is built on a PostgreSQL relational database with parameterized node-postgres (`pg`) queries, short-lived JWT authentication, strict user isolation, check constraints, row-level locks for financial integrity, and a responsive React 19 UI.
 
 ## Current Status
 
-**Stage 6 of 12 — Payment Tracking & Billing Management**
+**Stage 7 of 12 — Spending Analytics & SQL Reporting**
 
 Implemented:
 
-- **Payment Tracking & Billing Management:** Full manual payment recording, historical snapshot preservation, paginated & filtered audit listings, controlled payment corrections, and subscription-bound payments (see [PAYMENT_BILLING_MANAGEMENT.md](docs/PAYMENT_BILLING_MANAGEMENT.md))
-- **Concurrency-Safe Refund Tracking:** Transactional refund management using PostgreSQL row locks (`SELECT ... FOR UPDATE OF p`), ensuring aggregate completed refunds cannot exceed the original completed payment under concurrent requests
+- **Spending Analytics & SQL Reporting Engine:** Database-driven financial cash flow analytics, monthly trends with zero-activity period generation, category breakdowns, subscription-wise spending, top expensive subscription rankings, and streaming CSV export (see [SPENDING_ANALYTICS.md](docs/SPENDING_ANALYTICS.md) and [ANALYTICS_SQL_QUERIES.md](docs/ANALYTICS_SQL_QUERIES.md))
+- **DBMS Query Architecture:** CTE-driven double-counting prevention, conditional aggregation (`SUM(CASE ...)`), `generate_series` calendar matrix generation, window functions (`COUNT(*) OVER()`), and multi-table relational joins with zero ORM abstraction
+- **Payment Tracking & Billing Management (Stage 6):** Full manual payment recording, historical snapshot preservation, paginated & filtered audit listings, controlled payment corrections, and concurrency-safe refund tracking with row-level locks (see [PAYMENT_BILLING_MANAGEMENT.md](docs/PAYMENT_BILLING_MANAGEMENT.md))
 - **Billing Management & Projections:** Fixed-precision recurring monthly and yearly cost normalization (`P`, `P/3`, `P/12`) with strict currency separation; 30-day renewal schedule window with overdue alerts (without auto-inserting phantom payments)
 - **Subscription Management System (Stage 5):** Full CRUD, search, multi-field filtering, sorting, pagination, and lifecycle state management (see [SUBSCRIPTION_MANAGEMENT.md](docs/SUBSCRIPTION_MANAGEMENT.md))
 - **Catalog & Custom Services:** Seamless support for catalog-curated services (Netflix, Spotify, Notion, etc.) and arbitrary user-declared custom services without global catalog pollution (`chk_subscriptions_service_source`)
 - **Lifecycle & Status Transitions:** Tracking of `trial`, `active`, `paused`, and `cancelled` states with synchronized `cancelled_at` timestamps
 - **Deterministic Scheduling Rules:** Database constraints ensuring `next_renewal_date` and `trial_end_date` are mandatory when required and never precede `start_date`
 - **Soft Archival Policy:** Safe deactivation via `archived_at` timestamps preserving referential integrity for historical payments and allowing instant restoration
-- **Responsive React 19 UI:** Desktop tables with inline actions, mobile card grids, KPI spend statistics, interactive add/edit forms, payment filters, refund modals, and accessible confirmation dialogs
+- **Responsive React 19 UI:** Desktop tables with inline actions, mobile card grids, KPI spend statistics, interactive add/edit forms, payment filters, refund modals, analytics overview cards, and accessible confirmation dialogs
 - **Multi-Tenant User Isolation:** Parameterized queries strictly bound to verified session user IDs; cross-user access attempts rejected with 404
 - **Dual-Token Authentication (Stage 4):** Bcrypt hashing, short-lived JWT access tokens, rotating PostgreSQL-backed refresh sessions with replay detection, HTTP-only cookies, and CSRF protection
-- **Automated Test Coverage:** 41 backend tests (PostgreSQL integration tests against `spendwise_test` including concurrent race condition verification + unit tests) and 25 client Vitest tests (66 total passing tests; 30 live DB tests)
+- **Automated Test Coverage:** 48 backend tests (PostgreSQL integration tests against `spendwise_test` + unit tests) and 32 client Vitest tests (80 total passing tests; 37 live DB tests)
 
-Not implemented yet: spending analytics & SQL reporting (Stage 7), dashboard integration (Stage 8), renewal reminder workers (Stage 9), or AI optimization (Stage 10).
+Not implemented yet: frontend dashboard & interactive charting (Stage 8), renewal reminder workers (Stage 9), or AI optimization (Stage 10).
 
 ## Technology Stack
 
@@ -145,6 +146,16 @@ All APIs use the `/api/v1` prefix.
 | `POST` | `/api/v1/payments/:id/refunds` | Record a partial or full refund with row-level lock | Bearer JWT | Yes |
 | `GET` | `/api/v1/billing/overview` | Normalized recurring costs grouped by currency | Bearer JWT | Yes |
 | `GET` | `/api/v1/billing/upcoming` | Upcoming renewals and unconfirmed overdue alerts | Bearer JWT | Yes |
+| `GET` | `/api/v1/analytics/overview` | Gross, refund, and net spending totals with active counts | Bearer JWT | Yes |
+| `GET` | `/api/v1/analytics/trends` | Monthly cash-flow time series with calendar gap-filling | Bearer JWT | Yes |
+| `GET` | `/api/v1/analytics/categories` | Category spending breakdown with refunds and % of gross | Bearer JWT | Yes |
+| `GET` | `/api/v1/analytics/subscriptions` | Subscription spending aggregates with server pagination | Bearer JWT | Yes |
+| `GET` | `/api/v1/analytics/top-subscriptions` | Ranked top subscriptions by spending with limit control | Bearer JWT | Yes |
+| `GET` | `/api/v1/analytics/billing-cycles` | Spending distribution and counts across billing cycles | Bearer JWT | Yes |
+| `GET` | `/api/v1/analytics/payment-status` | Payment counts and amounts grouped by status | Bearer JWT | Yes |
+| `GET` | `/api/v1/analytics/refunds` | Refund analytics with refund-to-payment ratios | Bearer JWT | Yes |
+| `GET` | `/api/v1/analytics/report` | Composite multi-section financial summary report | Bearer JWT | Yes |
+| `GET` | `/api/v1/analytics/export` | Formula-injection-sanitized streaming CSV report | Bearer JWT | Yes |
 
 When PostgreSQL is absent or unavailable, database health safely returns HTTP 503 without crashing the API or exposing connection details.
 
@@ -198,6 +209,8 @@ See the [ER Diagram](docs/ER_DIAGRAM.md), [Schema Reference](docs/DATABASE_SCHEM
 - [Architecture Decisions](docs/ARCHITECTURE_DECISIONS.md)
 - [Subscription Management System](docs/SUBSCRIPTION_MANAGEMENT.md)
 - [Payment Tracking & Billing Management](docs/PAYMENT_BILLING_MANAGEMENT.md)
+- [Spending Analytics Engine](docs/SPENDING_ANALYTICS.md)
+- [DBMS Analytics SQL Queries](docs/ANALYTICS_SQL_QUERIES.md)
 - [General Local Setup](docs/LOCAL_SETUP.md)
 
 ## Roadmap
@@ -208,8 +221,8 @@ See the [ER Diagram](docs/ER_DIAGRAM.md), [Schema Reference](docs/DATABASE_SCHEM
 4. Authentication & Account Management — **complete**
 5. Subscription Management — **complete**
 6. Payment Tracking & Billing Management — **complete**
-7. Spending Analytics & SQL Reporting — **next stage**
-8. Frontend Dashboard & Integration
+7. Spending Analytics & SQL Reporting — **complete**
+8. Frontend Dashboard & Integration — **next stage**
 9. Renewal Reminders & Notifications
 10. AI-Powered Cost Optimization
 11. Advanced DBMS Implementation
@@ -221,6 +234,7 @@ See the [ER Diagram](docs/ER_DIAGRAM.md), [Schema Reference](docs/DATABASE_SCHEM
 - The application cannot make payments or cancel external subscriptions.
 - User accounts, JWT auth, rotating sessions, and user isolation are active.
 - Subscription CRUD, payment history, refund recording, and forward billing projections are active.
-- Spending analytics, multi-period aggregations, and DBMS views are owned by Stage 7.
+- Spending analytics, multi-period aggregations, CTE-based double-counting prevention, calendar series generation, and CSV export are active.
+- Frontend dashboard visualizations, interactive charting libraries (Recharts), and cohesive home summaries are owned by Stage 8.
 - The integration test suite may rebuild only the dedicated `spendwise_test` schema.
 - Recommendations remain advisory future records and must be grounded in stored data.

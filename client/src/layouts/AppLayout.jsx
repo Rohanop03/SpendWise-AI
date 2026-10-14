@@ -55,6 +55,12 @@ function AppLayout() {
                 </Link>
                 <Link
                   className="rounded-full px-3 py-2 text-slate-200 hover:text-white"
+                  to="/analytics"
+                >
+                  Analytics
+                </Link>
+                <Link
+                  className="rounded-full px-3 py-2 text-slate-200 hover:text-white"
                   to="/account"
                 >
                   Account

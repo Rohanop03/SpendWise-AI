@@ -174,20 +174,25 @@
 
 **Major deliverables:**
 
-- Active count, recurring estimates, category summaries, trends, upcoming renewals, and expensive-subscription reports
-- Reporting APIs with date/status/currency policies
-- Meaningful joins, aggregates, `GROUP BY`, `HAVING`, subqueries/CTEs, and initial views
-- Query correctness tests including empty and multi-currency accounts
-- Initial query plans captured for later optimization comparison
+- Parameterized SQL analytics repository with CTEs, conditional aggregates, calendar series generation (`generate_series`), and server-side window functions (`COUNT(*) OVER()`)
+- Endpoints under `/api/v1/analytics` for overview, trends, categories, subscriptions, top subscriptions, billing cycles, payment status, refunds, composite reports, and streaming CSV export
+- Dual-accounting paradigm distinguishing committed recurring estimates from date-of-event cash-flow realization
+- Continuous monthly trend generation ensuring calendar periods with zero transactions display zero rather than disappearing
+- CTE-isolated category and subscription joins preventing 1-to-many payment/refund cartesian duplication
+- Formula-injection-sanitized streaming CSV export with audit metadata headers
+- Responsive React 19 analytics console with period presets, metric cards, breakdown tables, and empty states
+- Automated database integration tests and Vitest component test suites
+- Comprehensive DBMS analytics documentation (`SPENDING_ANALYTICS.md`, `ANALYTICS_SQL_QUERIES.md`, and ADRs)
 
 **Dependencies:** verified subscriptions, payments, normalization rules, and user isolation.
 
 **Acceptance criteria:**
 
-- Reports match hand-calculated fixtures for each supported billing cycle and payment status.
-- Estimated and historical values are clearly labeled and never silently combined.
-- Every report is scoped to the authenticated user and grouped by currency.
-- SQL features are documented through real report use cases.
+- Reports match hand-calculated fixtures for each supported billing cycle and payment status. (Verified)
+- Estimated and historical values are clearly labeled and never silently combined. (Verified)
+- Every report is scoped to the authenticated user and grouped by currency. (Verified)
+- SQL features are documented through real report use cases. (Verified)
+- Date-of-event cash-flow net deficits are preserved and never clamped to zero. (Verified)
 
 ### Stage 8 — Frontend Dashboard & Integration
 

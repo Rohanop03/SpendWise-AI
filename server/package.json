@@ -11,7 +11,7 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "test": "node --test --test-concurrency=1",
-    "test:db": "node --test --test-concurrency=1 tests/database.integration.test.js tests/auth.integration.test.js tests/subscription.integration.test.js tests/payment.integration.test.js",
+    "test:db": "node --test --test-concurrency=1 tests/database.integration.test.js tests/auth.integration.test.js tests/subscription.integration.test.js tests/payment.integration.test.js tests/analytics.integration.test.js",
     "lint": "eslint src tests db scripts"
   },
   "dependencies": {

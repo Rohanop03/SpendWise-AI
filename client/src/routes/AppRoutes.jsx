@@ -5,6 +5,7 @@ import PublicOnlyRoute from '../auth/PublicOnlyRoute.jsx';
 import AppLayout from '../layouts/AppLayout.jsx';
 import AccountPage from '../pages/AccountPage.jsx';
 import AddSubscriptionPage from '../pages/AddSubscriptionPage.jsx';
+import AnalyticsPage from '../pages/AnalyticsPage.jsx';
 import BillingOverviewPage from '../pages/BillingOverviewPage.jsx';
 import EditSubscriptionPage from '../pages/EditSubscriptionPage.jsx';
 import HomePage from '../pages/HomePage.jsx';
@@ -38,6 +39,7 @@ function AppRoutes() {
           <Route element={<RecordPaymentPage />} path="payments/new" />
           <Route element={<PaymentDetailsPage />} path="payments/:id" />
           <Route element={<BillingOverviewPage />} path="billing" />
+          <Route element={<AnalyticsPage />} path="analytics" />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>

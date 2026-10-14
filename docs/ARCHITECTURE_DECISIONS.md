@@ -261,10 +261,41 @@ The database health endpoint intentionally uses `database: "unavailable"` withou
 
 **Consequences:** The frontend renders separate cost projection cards for each active currency. The system never sums amounts with different currency codes.
 
+## ADR-026: CTE-Based Double-Counting Prevention in 1-to-Many Financial Joins
+
+**Status:** Accepted in Stage 7
+
+**Decision:** In reporting queries aggregating categories or subscriptions (`getCategoryBreakdown`, `getSubscriptionBreakdown`), pre-aggregate completed payment totals and completed refund totals in separate Common Table Expressions (CTEs) before joining them back to the subscription or category dimension table. Never join `payments` directly with `refunds` in a single query block where a single payment row can join to multiple refund rows.
+
+**Rationale:** A direct join `payments p LEFT JOIN refunds r ON p.id = r.payment_id` creates a 1-to-N Cartesian multiplication whenever multiple partial refunds exist for a single payment. Summing `p.amount` across such joined rows multiplies the payment gross by $N$, severely corrupting financial statements and accounting reconciliation. CTE pre-aggregation condenses payments and refunds to single rows per category or subscription before the outer join.
+
+**Consequences:** Financial aggregates guarantee mathematical reconciliation: `net_amount = gross_amount - refund_amount`. Gross spending remains completely unaffected by the presence, count, or timing of partial refunds.
+
+## ADR-027: Continuous Calendar Series Generation for Zero-Activity Periods
+
+**Status:** Accepted in Stage 7
+
+**Decision:** For monthly trend queries (`getMonthlySpendingTrends`), construct a continuous calendar timeline using PostgreSQL's `generate_series(date_trunc('month', $startDate), date_trunc('month', $endDate), interval '1 month')` cross-joined with distinct user currencies, left-joining aggregated payment and refund CTEs onto the continuous series.
+
+**Rationale:** Financial time series without zero-filling omit calendar months that had no transaction activity (e.g., jumping directly from February to May). This distorts trend analysis, moving averages, and visualization axes. Database-level `generate_series` guarantees unbroken chronological reporting with explicit `0.00` balances.
+
+**Consequences:** Frontends and downstream reporting receive complete, continuous timelines across any selected date range without needing client-side interpolation or gap-filling logic.
+
+## ADR-028: Dual-Perspective Financial Modeling: Committed Estimates vs. Date-of-Event Cash Flow Realization
+
+**Status:** Accepted in Stage 7
+
+**Decision:** Explicitly segregate committed subscription recurring cost projections (`normalized_monthly_cost`) from realized historical cash flow. Realized cash flow attributes payments to their `payment_date` and refunds to their `refund_date`. Negative net cash flow (when refunds in a period exceed payments) must be accurately preserved as a deficit rather than clamped to zero.
+
+**Rationale:** A user committing to an annual \$120 subscription has a \$10/mo recurring estimate. However, their actual cash flow is a \$120 payment on day 1 and \$0 in subsequent months. Conflating commitments with cash flow distorts both budget forecasting and historical reconciliation. Furthermore, refunds received in a month where no new payments were made represent a net cash inflow (negative spending); clamping net spending to zero violates fundamental accounting principles.
+
+**Consequences:** Analytics interfaces and API payloads clearly distinguish committed recurring run-rates from realized cash flow. The API returns real signed net amounts (e.g., `-45.00`) and the UI renders them appropriately with distinct refund badges and indicators.
+
 ## Deferred Decisions
 
-- Aggregated multi-period spending analytics, views, and SQL reporting: Stage 7
+- Interactive dashboard charts, visual widgets, and navigation integration: Stage 8
 - Automated renewal reminder notifications: Stage 9
-- Row-level security reconsideration and advanced DBMS objects: Stage 11
+- AI-powered optimization rules and recommendation engine: Stage 10
+- Materialized views, database triggers, stored procedures, and row-level security: Stage 11
 - Production hosting, TLS termination, monitoring, backups, and recovery: Stage 12
 

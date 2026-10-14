@@ -368,11 +368,224 @@ export const createRefundSchema = z
     reason: z.string().trim().min(1).max(500).nullable().optional(),
     refundDate: validDateString,
     refundStatus: z.enum(['pending', 'completed', 'failed', 'cancelled']).default('completed'),
+    status: z.enum(['pending', 'completed', 'failed', 'cancelled']).optional(),
   })
-  .strict();
+  .strict()
+  .transform((data) => ({
+    ...data,
+    refundStatus: data.status || data.refundStatus,
+  }));
 
 export const billingQuerySchema = z
   .object({
     days: z.coerce.number().int().min(1).max(365).default(30),
   })
   .strict();
+
+export const analyticsDateRangeSchema = z
+  .object({
+    currencyCode: z
+      .string()
+      .trim()
+      .regex(/^[A-Z]{3}$/, 'Currency code must be a 3-letter ISO code.')
+      .transform((c) => c.toUpperCase())
+      .optional(),
+    endDate: validDateString.optional(),
+    startDate: validDateString.optional(),
+  })
+  .strict()
+  .refine(
+    (data) => {
+      if (data.startDate && data.endDate) {
+        return data.endDate >= data.startDate;
+      }
+      return true;
+    },
+    {
+      message: 'End date must be on or after start date.',
+      path: ['endDate'],
+    },
+  );
+
+export const analyticsCategoryQuerySchema = z
+  .object({
+    categoryId: entityId.optional(),
+    currencyCode: z
+      .string()
+      .trim()
+      .regex(/^[A-Z]{3}$/, 'Currency code must be a 3-letter ISO code.')
+      .transform((c) => c.toUpperCase())
+      .optional(),
+    endDate: validDateString.optional(),
+    startDate: validDateString.optional(),
+  })
+  .strict()
+  .refine(
+    (data) => {
+      if (data.startDate && data.endDate) {
+        return data.endDate >= data.startDate;
+      }
+      return true;
+    },
+    {
+      message: 'End date must be on or after start date.',
+      path: ['endDate'],
+    },
+  );
+
+export const analyticsTrendsQuerySchema = z
+  .object({
+    currencyCode: z
+      .string()
+      .trim()
+      .regex(/^[A-Z]{3}$/, 'Currency code must be a 3-letter ISO code.')
+      .transform((c) => c.toUpperCase())
+      .optional(),
+    endDate: validDateString.optional(),
+    interval: z.enum(['monthly', 'yearly']).default('monthly'),
+    startDate: validDateString.optional(),
+  })
+  .strict()
+  .refine(
+    (data) => {
+      if (data.startDate && data.endDate) {
+        return data.endDate >= data.startDate;
+      }
+      return true;
+    },
+    {
+      message: 'End date must be on or after start date.',
+      path: ['endDate'],
+    },
+  );
+
+export const analyticsSubscriptionsQuerySchema = z
+  .object({
+    currencyCode: z
+      .string()
+      .trim()
+      .regex(/^[A-Z]{3}$/, 'Currency code must be a 3-letter ISO code.')
+      .transform((c) => c.toUpperCase())
+      .optional(),
+    endDate: validDateString.optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    offset: z.coerce.number().int().min(0).default(0),
+    sortBy: z
+      .enum([
+        'grossPayments',
+        'netCashFlow',
+        'completedPaymentCount',
+        'serviceName',
+        'currentPrice',
+      ])
+      .default('grossPayments'),
+    sortOrder: z
+      .enum(['asc', 'desc', 'ASC', 'DESC'])
+      .default('desc')
+      .transform((val) => val.toLowerCase()),
+    startDate: validDateString.optional(),
+  })
+  .strict()
+  .refine(
+    (data) => {
+      if (data.startDate && data.endDate) {
+        return data.endDate >= data.startDate;
+      }
+      return true;
+    },
+    {
+      message: 'End date must be on or after start date.',
+      path: ['endDate'],
+    },
+  );
+
+export const analyticsTopSubscriptionsQuerySchema = z
+  .object({
+    currencyCode: z
+      .string()
+      .trim()
+      .regex(/^[A-Z]{3}$/, 'Currency code must be a 3-letter ISO code.')
+      .transform((c) => c.toUpperCase())
+      .optional(),
+    endDate: validDateString.optional(),
+    limit: z.coerce.number().int().min(1).max(50).default(5),
+    startDate: validDateString.optional(),
+    type: z.enum(['recurring', 'historical']).default('recurring'),
+  })
+  .strict()
+  .refine(
+    (data) => {
+      if (data.startDate && data.endDate) {
+        return data.endDate >= data.startDate;
+      }
+      return true;
+    },
+    {
+      message: 'End date must be on or after start date.',
+      path: ['endDate'],
+    },
+  );
+
+export const analyticsBillingCyclesQuerySchema = z
+  .object({
+    currencyCode: z
+      .string()
+      .trim()
+      .regex(/^[A-Z]{3}$/, 'Currency code must be a 3-letter ISO code.')
+      .transform((c) => c.toUpperCase())
+      .optional(),
+  })
+  .strict();
+
+export const analyticsRefundsQuerySchema = z
+  .object({
+    currencyCode: z
+      .string()
+      .trim()
+      .regex(/^[A-Z]{3}$/, 'Currency code must be a 3-letter ISO code.')
+      .transform((c) => c.toUpperCase())
+      .optional(),
+    endDate: validDateString.optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    startDate: validDateString.optional(),
+  })
+  .strict()
+  .refine(
+    (data) => {
+      if (data.startDate && data.endDate) {
+        return data.endDate >= data.startDate;
+      }
+      return true;
+    },
+    {
+      message: 'End date must be on or after start date.',
+      path: ['endDate'],
+    },
+  );
+
+export const analyticsReportQuerySchema = z
+  .object({
+    categoryId: entityId.optional(),
+    currencyCode: z
+      .string()
+      .trim()
+      .regex(/^[A-Z]{3}$/, 'Currency code must be a 3-letter ISO code.')
+      .transform((c) => c.toUpperCase())
+      .optional(),
+    endDate: validDateString.optional(),
+    startDate: validDateString.optional(),
+    subscriptionId: entityId.optional(),
+  })
+  .strict()
+  .refine(
+    (data) => {
+      if (data.startDate && data.endDate) {
+        return data.endDate >= data.startDate;
+      }
+      return true;
+    },
+    {
+      message: 'End date must be on or after start date.',
+      path: ['endDate'],
+    },
+  );

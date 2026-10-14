@@ -142,27 +142,31 @@
 - Invalid prices, currencies, cycles, statuses, and dates fail without partial writes. (Verified)
 - The selected history-preservation policy is consistently enforced. (Verified)
 
-### Stage 6 — Payment Tracking & Billing Management
+### Stage 6 — Payment Tracking & Billing Management (Completed)
+
+**Status:** Completed in Stage 6 (see [PAYMENT_BILLING_MANAGEMENT.md](PAYMENT_BILLING_MANAGEMENT.md))
 
 **Objective:** maintain accurate billing history and forward schedules without confusing expected and completed charges.
 
 **Major deliverables:**
 
-- Payment create, list, and permitted-correction APIs/UI
-- Final payment-status semantics and realized-spending policy
-- Upcoming expected-payment projection
-- Central monthly/yearly normalization utility using fixed precision
-- Transactional payment/schedule operation where justified
-- Tests for price changes, refunds/statuses, rollbacks, and currency separation
+- Payment create, list, and permitted-correction APIs/UI under `/api/v1/payments` and `/api/v1/subscriptions/:id/payments`
+- Concurrency-safe refund recording with PostgreSQL row-level locks (`SELECT ... FOR UPDATE OF p`)
+- Realized-spending calculation based strictly on completed payments
+- Upcoming renewal projections with unconfirmed overdue indicators
+- Fixed-precision decimal monetary arithmetic in integer cents avoiding floating-point drift
+- Strict currency separation across all cost projections and payment records
+- Integration tests verifying concurrent race conditions, user isolation, and financial invariants
 
 **Dependencies:** Stage 5 subscriptions and Stage 3 payment/history decisions.
 
 **Acceptance criteria:**
 
-- Upcoming renewals do not automatically become completed payments.
-- Historical payment totals use recorded amounts and remain unchanged after price edits.
-- Normalization produces correct monthly/yearly estimates for all supported cycles.
-- Transaction failures leave no partial payment/schedule state.
+- Upcoming renewals do not automatically become completed payments. (Verified)
+- Historical payment totals use recorded amounts and remain unchanged after price edits. (Verified)
+- Normalization produces correct monthly/yearly estimates for all supported cycles. (Verified)
+- Transaction failures leave no partial payment/schedule state. (Verified)
+- Concurrent partial refunds cannot exceed original payment amounts. (Verified)
 
 ### Stage 7 — Spending Analytics & SQL Reporting
 

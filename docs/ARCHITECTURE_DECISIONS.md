@@ -221,10 +221,50 @@ The database health endpoint intentionally uses `database: "unavailable"` withou
 
 **Consequences:** The application handles catalog and custom services uniformly in queries through `COALESCE(svc.name, s.custom_service_name) AS service_name`. The frontend provides a clear toggle between catalog selection and custom name input.
 
+## ADR-022: Manual Payment Tracking and Expected vs. Completed Separation
+
+**Status:** Accepted in Stage 6
+
+**Decision:** Treat SpendWise AI strictly as an informational recording system for user-attested external financial transactions. Never integrate automated payment gateways or auto-insert completed payment records when subscription renewal dates arrive or expire. Display unconfirmed renewal events as overdue alerts rather than realized expenditures.
+
+**Rationale:** SpendWise AI does not process credit cards or execute banking transfers. Automatically inserting payment records upon renewal dates would falsify financial history whenever a user paused, cancelled, or altered payment externally without prior app update.
+
+**Consequences:** Realized spending calculations aggregate only records with `payment_status = 'completed'`. Overdue subscriptions prompt the user with accessible warnings and manual "Record Payment" shortcuts.
+
+## ADR-023: Exact Decimal Arithmetic via Integer Cents
+
+**Status:** Accepted in Stage 6
+
+**Decision:** Perform all money comparisons, additions, subtractions, and refund balance checks in Node.js using normalized integer cents (`cents = Math.round(Number(amount) * 100)`), serializing to/from fixed two-decimal strings (`(cents / 100).toFixed(2)`), and persisting in PostgreSQL as `NUMERIC(12, 2)`.
+
+**Rationale:** IEEE-754 binary floating-point numbers incur precision and rounding errors (e.g., `0.1 + 0.2 = 0.30000000000000004`). In financial accounting, floating-point drift can cause invalid balance checks or refund rejections. Integer cents provide exact, deterministic integer arithmetic.
+
+**Consequences:** Decimal amounts passed into business logic and repository functions are converted to integer cents before validation. API boundary responses return clean two-decimal strings.
+
+## ADR-024: Concurrency-Safe Refund Validation with Row-Level Locking
+
+**Status:** Accepted in Stage 6
+
+**Decision:** Wrap all refund creations in a PostgreSQL transaction (`database.withTransaction`) that begins by executing an exclusive row lock on the parent payment (`SELECT p.*, s.user_id FROM payments p JOIN subscriptions s ... WHERE p.id = $1 FOR UPDATE OF p`). Sum existing completed refunds within the same transaction and reject any new refund that would cause the aggregate refund sum to exceed the locked payment's amount.
+
+**Rationale:** Without row-level locking, concurrent refund submissions (e.g., rapid double-clicking or parallel API calls) could both read an outdated refund sum before either inserts, resulting in total refunds exceeding the original payment amount.
+
+**Consequences:** Concurrent refund attempts on the same payment queue sequentially in PostgreSQL. Once the first transaction completes, the second evaluates the updated total and returns a 400 Bad Request error if the refundable balance is exhausted.
+
+## ADR-025: Strict Currency Separation in Recurring Cost Projections
+
+**Status:** Accepted in Stage 6
+
+**Decision:** Group recurring cost estimates (`/api/v1/billing/overview`) strictly by currency code without attempting ad-hoc conversions. Projections report monthly and yearly normalized amounts per currency (e.g., INR 1,498.00/mo and USD 19.99/mo).
+
+**Rationale:** SpendWise AI does not maintain live exchange-rate feeds in Stage 6. Arbitrary or hard-coded exchange rates create misleading financial totals.
+
+**Consequences:** The frontend renders separate cost projection cards for each active currency. The system never sums amounts with different currency codes.
+
 ## Deferred Decisions
 
-- Business validation and ownership-aware repositories for payments: Stage 6
-- Cross-row refund-total enforcement: Stage 6 transactional payment service
+- Aggregated multi-period spending analytics, views, and SQL reporting: Stage 7
+- Automated renewal reminder notifications: Stage 9
 - Row-level security reconsideration and advanced DBMS objects: Stage 11
 - Production hosting, TLS termination, monitoring, backups, and recovery: Stage 12
 

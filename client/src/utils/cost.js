@@ -43,3 +43,37 @@ export function getBillingCycleLabel(billingCycle) {
       return 'Monthly';
   }
 }
+
+export function calculateEstimatedPeriodEnd(startDateStr, billingCycle) {
+  if (!startDateStr || !/^\d{4}-\d{2}-\d{2}$/.test(startDateStr)) {
+    return '';
+  }
+
+  const [year, month, day] = startDateStr.split('-').map(Number);
+  let targetYear = year;
+  let targetMonth = month;
+
+  if (billingCycle === 'yearly') {
+    targetYear += 1;
+  } else if (billingCycle === 'quarterly') {
+    targetMonth += 3;
+    while (targetMonth > 12) {
+      targetMonth -= 12;
+      targetYear += 1;
+    }
+  } else {
+    targetMonth += 1;
+    if (targetMonth > 12) {
+      targetMonth = 1;
+      targetYear += 1;
+    }
+  }
+
+  const nextCycle = new Date(Date.UTC(targetYear, targetMonth - 1, day));
+  nextCycle.setUTCDate(nextCycle.getUTCDate() - 1);
+
+  const y = nextCycle.getUTCFullYear();
+  const m = String(nextCycle.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(nextCycle.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}

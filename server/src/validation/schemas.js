@@ -258,3 +258,121 @@ export const subscriptionQuerySchema = z
     status: z.enum(['trial', 'active', 'paused', 'cancelled']).optional(),
   })
   .strict();
+
+export const monetaryAmount = z
+  .union([z.number(), z.string()])
+  .pipe(
+    z.coerce
+      .number()
+      .positive('Amount must be greater than 0.')
+      .refine((val) => Number.isFinite(val), 'Amount must be a finite number.')
+      .refine((val) => {
+        const str = String(val);
+        const parts = str.split('.');
+        return parts.length < 2 || parts[1].length <= 2;
+      }, 'Amount cannot have more than 2 decimal places.'),
+  )
+  .transform((val) => val.toFixed(2));
+
+export const createPaymentSchema = z
+  .object({
+    amount: monetaryAmount,
+    billingPeriodEnd: validDateString.nullable().optional(),
+    billingPeriodStart: validDateString.nullable().optional(),
+    currencyCode: z
+      .string()
+      .trim()
+      .regex(/^[A-Z]{3}$/, 'Currency code must be a 3-letter ISO code.')
+      .transform((c) => c.toUpperCase()),
+    notes: z.string().max(2000).nullable().optional(),
+    paymentDate: validDateString,
+    paymentStatus: z.enum(['pending', 'completed', 'failed', 'cancelled']).default('completed'),
+  })
+  .strict()
+  .refine(
+    (data) => {
+      const hasStart = Boolean(data.billingPeriodStart);
+      const hasEnd = Boolean(data.billingPeriodEnd);
+      return (hasStart && hasEnd) || (!hasStart && !hasEnd);
+    },
+    {
+      message: 'Billing period start and end dates must either both be provided or both omitted.',
+      path: ['billingPeriodEnd'],
+    },
+  )
+  .refine(
+    (data) => {
+      if (data.billingPeriodStart && data.billingPeriodEnd) {
+        return data.billingPeriodEnd >= data.billingPeriodStart;
+      }
+      return true;
+    },
+    {
+      message: 'Billing period end date must be on or after billing period start date.',
+      path: ['billingPeriodEnd'],
+    },
+  );
+
+export const updatePaymentSchema = z
+  .object({
+    amount: monetaryAmount.optional(),
+    billingPeriodEnd: validDateString.nullable().optional(),
+    billingPeriodStart: validDateString.nullable().optional(),
+    notes: z.string().max(2000).nullable().optional(),
+    paymentDate: validDateString.optional(),
+    paymentStatus: z.enum(['pending', 'completed', 'failed', 'cancelled']).optional(),
+  })
+  .strict()
+  .refine((values) => Object.keys(values).length > 0, {
+    message: 'At least one field is required to update payment.',
+  })
+  .refine(
+    (data) => {
+      if (data.billingPeriodStart && data.billingPeriodEnd) {
+        return data.billingPeriodEnd >= data.billingPeriodStart;
+      }
+      return true;
+    },
+    {
+      message: 'Billing period end date must be on or after billing period start date.',
+      path: ['billingPeriodEnd'],
+    },
+  );
+
+export const paymentQuerySchema = z
+  .object({
+    currencyCode: z
+      .string()
+      .trim()
+      .regex(/^[A-Z]{3}$/)
+      .transform((c) => c.toUpperCase())
+      .optional(),
+    endDate: validDateString.optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(10),
+    page: z.coerce.number().int().min(1).default(1),
+    paymentStatus: z.enum(['pending', 'completed', 'failed', 'cancelled']).optional(),
+    sortBy: z.enum(['paymentDate', 'amount', 'createdAt']).default('paymentDate'),
+    sortOrder: z
+      .enum(['asc', 'desc', 'ASC', 'DESC'])
+      .default('desc')
+      .transform((val) => val.toLowerCase()),
+    startDate: validDateString.optional(),
+    status: z.enum(['pending', 'completed', 'failed', 'cancelled']).optional(),
+    subscriptionId: entityId.optional(),
+  })
+  .strict();
+
+export const createRefundSchema = z
+  .object({
+    amount: monetaryAmount,
+    reason: z.string().trim().min(1).max(500).nullable().optional(),
+    refundDate: validDateString,
+    refundStatus: z.enum(['pending', 'completed', 'failed', 'cancelled']).default('completed'),
+  })
+  .strict();
+
+export const billingQuerySchema = z
+  .object({
+    days: z.coerce.number().int().min(1).max(365).default(30),
+  })
+  .strict();

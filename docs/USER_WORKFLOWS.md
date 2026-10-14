@@ -47,17 +47,46 @@
 
 **Failure paths:** stale/missing record, invalid data, or an unowned identifier results in a safe error and no update.
 
-## 5. Recording a Payment
+## 5. Payment & Billing Workflows
 
-1. The authenticated user opens an owned subscription or the payment-entry workflow.
-2. The user enters the amount, currency, billing/payment date, and payment status.
-3. The frontend submits the payment as an explicit user action.
-4. The backend validates the input and confirms ownership of the related subscription.
-5. The database records the payment amount as historical information, independent of later price changes.
-6. If renewal-date advancement is included in the same action, the backend performs payment creation and schedule update in a transaction.
-7. The application confirms the recorded state and refreshes payment-history analytics.
+### 5.1 Recording a Manual Payment
 
-**Important:** an upcoming renewal or expected payment is never automatically treated as completed. Failed or rolled-back operations leave neither a partial payment nor an inconsistent renewal schedule.
+1. The authenticated user opens the **Record Payment** page (`/payments/new`) or clicks **Record Payment** from a subscription's details view.
+2. The user selects a subscription, prefilling the currency and recurring price.
+3. The user confirms or adjusts the actual amount paid, payment date, coverage dates (`billing_period_start` and `billing_period_end`), payment status (`completed`, `pending`, or `failed`), and optional notes.
+4. The frontend submits the explicit user-attested record to `POST /api/v1/subscriptions/:id/payments`.
+5. The backend validates user ownership of the subscription, sanitizes input, and saves the historical record.
+6. The payment snapshot preserves the exact amount and currency paid regardless of subsequent subscription changes.
+
+**Important:** An upcoming renewal or expected payment is never automatically treated as completed. SpendWise AI does not process card charges.
+
+### 5.2 Correcting a Payment Entry
+
+1. The user navigates to **Payment Details** (`/payments/:id`) and clicks **Edit Payment**.
+2. The user updates permitted fields (amount, payment date, status, billing period, notes).
+3. The backend enforces refund integrity rules:
+   - If completed refunds exist, status cannot be transitioned to `pending` or `failed`.
+   - The payment amount cannot be reduced below the cumulative sum of completed refunds.
+4. The database updates the payment record and returns the updated entity.
+
+### 5.3 Recording a Partial or Full Refund
+
+1. The user opens a completed payment in **Payment Details** and clicks **Record Refund**.
+2. The interface calculates and displays the current remaining refundable balance.
+3. The user enters the refund amount, date, and reason, selecting status (`completed` or `pending`).
+4. The backend opens a PostgreSQL transaction, locks the payment row exclusively (`SELECT ... FOR UPDATE OF p`), and calculates current completed refunds.
+5. If the new refund would exceed the payment amount, the transaction rolls back and returns an error.
+6. If valid, the refund is inserted and the updated net refundable balance is returned.
+
+### 5.4 Monitoring Billing Schedules & Upcoming Renewals
+
+1. The user visits the **Billing Overview** page (`/billing`).
+2. The interface displays estimated recurring costs normalized to monthly and yearly figures, grouped strictly by currency.
+3. The upcoming renewal window (default 30 days) lists active and trial subscriptions.
+4. If any subscription's `next_renewal_date` has passed without an updated renewal date, it is flagged as **Overdue**.
+5. The user can click **Record Payment** directly from the upcoming list to log the actual payment.
+
+**Failure paths:** Invalid amounts, unsupported currencies, date inversions, unauthorized access, or refunds exceeding balances produce safe, actionable errors without partial database state.
 
 ## 6. Viewing Expense Analytics
 

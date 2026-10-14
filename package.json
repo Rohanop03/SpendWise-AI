@@ -12,8 +12,13 @@
     "dev": "concurrently --kill-others-on-fail --names client,server --prefix-colors cyan,green \"npm run dev --workspace client\" \"npm run dev --workspace server\"",
     "dev:client": "npm run dev --workspace client",
     "dev:server": "npm run dev --workspace server",
+    "db:check": "npm run db:check --workspace server",
+    "db:migrate": "npm run db:migrate --workspace server",
+    "db:seed": "npm run db:seed --workspace server",
+    "db:seed:demo": "npm run db:seed:demo --workspace server",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "test:db": "npm run test:db --workspace server",
     "build": "npm run build --workspace client",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

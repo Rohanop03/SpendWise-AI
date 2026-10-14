@@ -4,10 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "db:check": "node scripts/checkDatabase.js",
+    "db:migrate": "node scripts/migrate.js",
+    "db:seed": "node scripts/seed.js",
+    "db:seed:demo": "node scripts/seed.js --demo",
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "test": "node --test",
-    "lint": "eslint src tests"
+    "test:db": "node --test tests/database.integration.test.js",
+    "lint": "eslint src tests db scripts"
   },
   "dependencies": {
     "cors": "^2.8.6",

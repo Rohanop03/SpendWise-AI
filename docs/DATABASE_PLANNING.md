@@ -1,8 +1,10 @@
 # Preliminary Database Planning
 
+> **Historical Stage 1 document:** The physical design was finalized and implemented in Stage 3. See [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md), [ER_DIAGRAM.md](ER_DIAGRAM.md), and [NORMALIZATION.md](NORMALIZATION.md). The candidate questions below are retained to show the design process; where they differ, the Stage 3 documents and migrations are authoritative.
+
 ## 1. Purpose and Boundaries
 
-This document identifies likely entities, relationships, integrity concerns, and meaningful DBMS use cases. It is a conceptual model only.
+This document identified likely entities, relationships, integrity concerns, and meaningful DBMS use cases before implementation. It is a conceptual planning record only.
 
 Stage 1 does **not** define physical table names, columns, PostgreSQL data types, migrations, SQL statements, seed data, or final cardinality edge cases. Detailed entity-relationship modeling, functional dependencies, normalization, constraints, and deletion behavior belong to Stage 3.
 

@@ -1,6 +1,6 @@
 # Local Setup Guide
 
-This guide runs the Stage 2 SpendWise AI foundation on Windows with Visual Studio Code and PowerShell. PostgreSQL is optional for the basic frontend and API health check.
+This guide runs the Stage 3 SpendWise AI application on Windows with Visual Studio Code and PowerShell. PostgreSQL is optional for the basic frontend and API health check, but required for migrations, seeds, database tests, and successful database health.
 
 ## 1. Required Software
 
@@ -9,7 +9,7 @@ This guide runs the Stage 2 SpendWise AI foundation on Windows with Visual Studi
 - Node.js `22.19.0` as recorded in `.nvmrc`, or another compatible maintained release satisfying `>=22.13.0`
 - npm `10` or newer
 - A modern browser
-- PostgreSQL only when verifying the optional database connection endpoint
+- PostgreSQL 14 or newer for Stage 3 database work
 
 Confirm the installed tools from PowerShell:
 
@@ -76,6 +76,8 @@ The supported variables are:
 | `PORT` | `5000` | Express HTTP port |
 | `CORS_ORIGIN` | `http://localhost:5173` | Browser origin permitted by CORS |
 | `DATABASE_URL` | unset | Optional PostgreSQL connection URL |
+| `TEST_DATABASE_URL` | unset | Dedicated `spendwise_test` integration-test URL |
+| `ALLOW_DEMO_SEED` | `false` | Explicit guard for fictional development seeds |
 
 The example `DATABASE_URL` is commented out deliberately. Leave it unset when PostgreSQL is not available. The backend and `/api/v1/health` still work; `/api/v1/health/database` returns HTTP 503 as designed.
 
@@ -150,38 +152,20 @@ An unknown endpoint, such as `/api/v1/unknown`, returns HTTP 404 and a JSON erro
 
 The page performs one health request when it loads. It does not continuously poll the backend.
 
-## 9. Optional PostgreSQL Setup
+## 9. PostgreSQL Setup
 
-Install PostgreSQL using the official Windows installer or use an existing local PostgreSQL instance. Ensure its command-line tools are available on `PATH` if you intend to use PowerShell rather than pgAdmin.
+Follow the complete [PostgreSQL Setup Guide](DATABASE_SETUP.md). It covers the Windows installer, pgAdmin/psql access, dedicated `spendwise_app` role, separate `spendwise_dev` and `spendwise_test` databases, private URLs, migrations, seeds, live inspection, and troubleshooting.
 
-Create an empty local database through pgAdmin or with a command such as:
-
-```powershell
-createdb -U postgres spendwise_dev
-```
-
-Stage 2 creates no tables, migrations, roles, or seed data. Use a local PostgreSQL account you control and update `server/.env` with its real values:
-
-```dotenv
-DATABASE_URL=postgresql://your_local_user:your_url_encoded_password@localhost:5432/spendwise_dev
-```
-
-Restart the backend after changing `.env`, then run:
+After configuration, the normal initialization sequence is:
 
 ```powershell
-curl.exe -i http://localhost:5000/api/v1/health/database
+npm run db:check
+npm run db:migrate
+npm run db:seed
+npm run test:db
 ```
 
-A successful connection returns HTTP 200:
-
-```json
-{
-  "status": "ok",
-  "database": "connected"
-}
-```
-
-The connectivity query is `SELECT 1`; it does not create or modify database objects.
+The integration suite destructively rebuilds only `spendwise_test.public` and refuses every other database name.
 
 ## 10. Quality and Build Commands
 
@@ -190,12 +174,14 @@ Run these from the repository root:
 ```powershell
 npm run lint
 npm run test
+npm run test:db
 npm run format:check
 npm run build
 ```
 
 - `lint` checks frontend, backend, tests, and shared JavaScript configuration.
-- `test` runs deterministic backend HTTP tests with mocked database behavior; no live database is required.
+- `test` runs backend HTTP/database unit tests and skips the integration suite when `TEST_DATABASE_URL` is absent.
+- `test:db` runs the real PostgreSQL suite against the guarded `spendwise_test` database.
 - `format:check` checks implementation and configuration formatting while preserving manually formatted project documentation.
 - `build` creates a production frontend bundle in `client/dist/`.
 
@@ -237,6 +223,6 @@ The backend deliberately rejects invalid ports, origins, runtime names, and malf
 
 Run `npm install` from the repository root. Do not maintain separate `client` or `server` lockfiles.
 
-## 12. Stage 2 Boundaries
+## 12. Stage 3 Boundaries
 
-The current application provides only a landing page, routing foundation, API health endpoints, and PostgreSQL connection infrastructure. It does not include accounts, authentication, subscriptions, payments, analytics, reminders, recommendations, database tables, migrations, or seed data.
+The current application provides a landing page, routing foundation, API health endpoints, PostgreSQL schema/migrations/seeds, and database tests. It does not include account APIs, authentication, domain CRUD endpoints, analytics, scheduler execution, notification delivery, or recommendation generation.

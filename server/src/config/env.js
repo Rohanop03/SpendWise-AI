@@ -40,7 +40,7 @@ function parseCorsOrigin(value) {
   return corsOrigin;
 }
 
-function parseDatabaseUrl(value) {
+function parseDatabaseUrl(value, variableName) {
   if (!value?.trim()) {
     return null;
   }
@@ -52,18 +52,36 @@ function parseDatabaseUrl(value) {
       throw new Error();
     }
   } catch {
-    throw new Error('DATABASE_URL must be a valid PostgreSQL connection URL when provided.');
+    throw new Error(`${variableName} must be a valid PostgreSQL connection URL when provided.`);
   }
 
   return value;
 }
 
+function parseBoolean(value, variableName, defaultValue = false) {
+  if (value === undefined || value === '') {
+    return defaultValue;
+  }
+
+  if (value === 'true') {
+    return true;
+  }
+
+  if (value === 'false') {
+    return false;
+  }
+
+  throw new Error(`${variableName} must be true or false.`);
+}
+
 export function loadConfig(environment = process.env) {
   return Object.freeze({
+    allowDemoSeed: parseBoolean(environment.ALLOW_DEMO_SEED, 'ALLOW_DEMO_SEED'),
     corsOrigin: parseCorsOrigin(environment.CORS_ORIGIN),
-    databaseUrl: parseDatabaseUrl(environment.DATABASE_URL),
+    databaseUrl: parseDatabaseUrl(environment.DATABASE_URL, 'DATABASE_URL'),
     nodeEnv: parseNodeEnvironment(environment.NODE_ENV),
     port: parsePort(environment.PORT),
+    testDatabaseUrl: parseDatabaseUrl(environment.TEST_DATABASE_URL, 'TEST_DATABASE_URL'),
   });
 }
 

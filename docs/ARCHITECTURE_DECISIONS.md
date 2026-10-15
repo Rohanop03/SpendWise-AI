@@ -303,9 +303,28 @@ The database health endpoint intentionally uses `database: "unavailable"` withou
 
 ## Deferred Decisions
 
-- AI-powered optimization rules and recommendation engine: Stage 10
 - Materialized views, database triggers, stored procedures, and row-level security: Stage 11
 - Production hosting, TLS termination, monitoring, backups, and recovery: Stage 12
+
+## ADR-032: Deterministic Recommendations with Optional Explanation-Only AI
+
+**Status:** Accepted in Stage 10
+
+**Decision:** Treat versioned deterministic rules and exact stored calculations as authoritative. An optional provider may rewrite only an allowlisted facts object and always falls back to deterministic text.
+
+**Rationale:** Subscription usage, external plan prices, and provider actions are unavailable. A language model cannot safely infer them or become the financial calculator.
+
+**Consequences:** Recommendations are reproducible and testable. No provider is configured in Stage 10, all functionality works offline, and provider output can never change persisted savings.
+
+## ADR-033: Stable Recommendation Keys and Per-User Serialized Generation
+
+**Status:** Accepted in Stage 10
+
+**Decision:** Serialize generation by locking the authenticated user row, upsert `(user_id,recommendation_key)`, synchronize relationships in one transaction, and preserve dismissed/resolved state.
+
+**Rationale:** Repeated or simultaneous analysis must not duplicate advice or overwrite user feedback.
+
+**Consequences:** Current facts refresh safely, stale active rows become inactive without deletion, and genuinely new dated events can receive new identities.
 
 ## ADR-029: Coordinated Dashboard Fetching with Independent Widget State
 

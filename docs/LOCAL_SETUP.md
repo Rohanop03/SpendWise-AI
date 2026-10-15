@@ -239,7 +239,7 @@ Recharts is installed in the client workspace. If dependencies or the lockfile a
 
 ## 13. Current Stage Boundaries
 
-Stages 1–9 provide account authentication, subscription management, payment/refund records, billing projections, SQL analytics, the dashboard, and database-backed in-app reminders. External delivery, AI recommendations, bank/payment-provider integrations, and production deployment remain outside the current stage.
+Stages 1–10 provide account authentication, subscription management, payment/refund records, billing projections, SQL analytics, the dashboard, database-backed in-app reminders, and deterministic cost recommendations. External notification delivery, an external LLM provider, bank/payment-provider integrations, and production deployment remain outside the current stage.
 
 ## 14. Reminder Worker
 

@@ -165,24 +165,31 @@ Non-system notifications require a subscription and target date. Indexes support
 
 ## `recommendations`
 
-Stores explainable future recommendation records, their evidence snapshot, rule version, optional savings estimate, and lifecycle. Stage 3 generates none.
+Stores explainable deterministic recommendation records, their evidence snapshot, rule version, optional savings estimate, and lifecycle. Stage 10 generates them on demand.
 
 | Column | Type | Null/default | Rules |
 | --- | --- | --- | --- |
 | `id` | `BIGINT` identity | not null | Primary key |
 | `user_id` | `BIGINT` | not null | FK to `users`, `ON DELETE RESTRICT` |
 | `recommendation_type` | `VARCHAR(40)` | not null | Supported deterministic rule type |
+| `title` | `VARCHAR(160)` | not null | User-facing rule title |
 | `explanation` | `TEXT` | not null | Trimmed length 1–4,000 |
 | `evidence` | `JSONB` | `{}` | Must be a JSON object |
 | `rule_version` | `VARCHAR(40)` | not null | Trimmed length 1–40 |
 | `estimated_savings` | `NUMERIC(12,2)` | nullable | Nonnegative; all savings fields present together |
 | `currency_code` | `VARCHAR(3)` | nullable | Uppercase code paired with estimate |
 | `savings_period` | `VARCHAR(20)` | nullable | `monthly`, `yearly`, or `one_time` |
-| `status` | `VARCHAR(20)` | `active` | `active`, `dismissed`, or `resolved` |
+| `priority` | `VARCHAR(10)` | not null | `high`, `medium`, or `low` |
+| `confidence` | `VARCHAR(10)` | not null | Evidence strength, separate from priority |
+| `suggested_action` | `VARCHAR(500)` | not null | Advisory next step |
+| `recommendation_key` | `VARCHAR(200)` | not null | Unique with `user_id` for idempotency |
+| `source_fingerprint` | `VARCHAR(64)` | not null | SHA-256 fact snapshot fingerprint |
+| `evaluated_at` | `TIMESTAMPTZ` | current timestamp | Latest rule evaluation |
+| `status` | `VARCHAR(20)` | `active` | `active`, `dismissed`, `resolved`, or `inactive` |
 | `resolved_at` | `TIMESTAMPTZ` | nullable | Absent for active; present otherwise |
 | `created_at`, `updated_at` | `TIMESTAMPTZ` | current timestamp | Record timestamps |
 
-`(user_id,id)` is unique for ownership-aware links. Index: user, status, and newest creation time.
+`(user_id,id)` is unique for ownership-aware links; `(user_id,recommendation_key)` prevents concurrent logical duplicates. Indexes support lifecycle lists and type/priority analysis.
 
 ## `recommendation_subscriptions`
 

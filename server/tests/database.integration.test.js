@@ -100,6 +100,7 @@ if (!config.testDatabaseUrl) {
         '001_initial_schema',
         '002_auth_sessions',
         '003_notification_target_dates',
+        '004_ai_cost_optimization',
       ]);
     });
 
@@ -292,8 +293,12 @@ if (!config.testDatabaseUrl) {
       const recommendation = await database.query(
         `
           INSERT INTO recommendations (
-            user_id, recommendation_type, explanation, rule_version
-          ) VALUES ($1, 'price_outlier', 'Test explanation', 'test-v1')
+            user_id, recommendation_type, title, explanation, rule_version,
+            priority, confidence, suggested_action, recommendation_key, source_fingerprint
+          ) VALUES (
+            $1, 'price_outlier', 'Test recommendation', 'Test explanation', 'test-v1',
+            'medium', 'high', 'Review this test record.', 'test-ownership', repeat('0', 64)
+          )
           RETURNING id
         `,
         [secondUserId],
@@ -413,6 +418,7 @@ if (!config.testDatabaseUrl) {
         '001_initial_schema',
         '002_auth_sessions',
         '003_notification_target_dates',
+        '004_ai_cost_optimization',
       ]);
 
       const initialTracking = await database.query(
@@ -438,6 +444,10 @@ if (!config.testDatabaseUrl) {
         await copyFile(
           path.join(defaultMigrationsDirectory, '003_notification_target_dates.sql'),
           path.join(temporaryDirectory, '003_notification_target_dates.sql'),
+        );
+        await copyFile(
+          path.join(defaultMigrationsDirectory, '004_ai_cost_optimization.sql'),
+          path.join(temporaryDirectory, '004_ai_cost_optimization.sql'),
         );
         await writeFile(
           path.join(temporaryDirectory, '900_valid_probe.sql'),

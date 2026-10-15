@@ -243,6 +243,8 @@
 
 ### Stage 10 — AI-Powered Cost Optimization
 
+**Status:** Complete
+
 **Objective:** generate transparent cost-optimization suggestions from actual stored subscription data.
 
 **Major deliverables:**

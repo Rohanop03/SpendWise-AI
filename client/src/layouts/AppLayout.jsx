@@ -10,6 +10,7 @@ const authenticatedLinks = [
   ['/payments', 'Payments'],
   ['/billing', 'Billing'],
   ['/analytics', 'Analytics'],
+  ['/recommendations', 'Recommendations'],
   ['/notifications', 'Notifications'],
   ['/account', 'Account'],
   ['/settings', 'Settings'],
@@ -135,7 +136,7 @@ function AppLayout() {
       <footer className="border-t border-white/10 bg-slate-950">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-8 text-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
           <p>SpendWise AI · Clear subscription and cash-flow records.</p>
-          <p>Stage 9: renewal reminders & notifications</p>
+          <p>Stage 10: explainable cost optimization</p>
         </div>
       </footer>
     </div>

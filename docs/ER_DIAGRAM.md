@@ -97,6 +97,9 @@ erDiagram
     bigint id PK
     bigint user_id FK
     varchar recommendation_type
+    varchar recommendation_key UK
+    varchar priority
+    varchar confidence
     jsonb evidence
     numeric estimated_savings
     varchar status

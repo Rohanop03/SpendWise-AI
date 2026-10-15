@@ -8,6 +8,7 @@ import DashboardEmptyState from '../components/dashboard/DashboardEmptyState.jsx
 import DashboardFilters from '../components/dashboard/DashboardFilters.jsx';
 import FinancialSummaryCards from '../components/dashboard/FinancialSummaryCards.jsx';
 import PaymentStatusWidget from '../components/dashboard/PaymentStatusWidget.jsx';
+import OptimizationWidget from '../components/dashboard/OptimizationWidget.jsx';
 import RefundSummary from '../components/dashboard/RefundSummary.jsx';
 import SpendingTrendChart from '../components/dashboard/SpendingTrendChart.jsx';
 import TopSubscriptionsChart from '../components/dashboard/TopSubscriptionsChart.jsx';
@@ -21,6 +22,7 @@ const quickLinks = [
   ['/billing', 'Review billing schedule'],
   ['/analytics', 'Open detailed analytics'],
   ['/notifications', 'Review notifications'],
+  ['/recommendations', 'Review cost recommendations'],
 ];
 
 export default function DashboardPage() {
@@ -190,7 +192,10 @@ export default function DashboardPage() {
           <div className="min-w-0 xl:col-span-5">
             <RefundSummary onRetry={retry} widget={widgets.refunds} />
           </div>
-          <section className="min-w-0 rounded-3xl border border-white/10 bg-slate-900/65 p-6 xl:col-span-7">
+          <div className="min-w-0 xl:col-span-7">
+            <OptimizationWidget />
+          </div>
+          <section className="min-w-0 rounded-3xl border border-white/10 bg-slate-900/65 p-6 xl:col-span-12">
             <h2 className="text-lg font-bold text-white">Quick actions</h2>
             <p className="mt-1 text-sm text-slate-400">
               Move from insight to accurate record keeping.

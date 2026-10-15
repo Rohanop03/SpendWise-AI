@@ -163,10 +163,10 @@
 ## 8. Receiving an AI Optimization Recommendation
 
 1. The recommendation process selects the authenticated user's eligible subscription and analytics data.
-2. Deterministic rules evaluate possible service overlap, cost outliers, and category concentration within comparable currencies and groups.
+2. Deterministic rules evaluate exact duplicates, cautious category overlap, high recurring cost, historical spending concentration, renewal/trial timing, and billing-plan review within comparable currencies.
 3. A rule produces a recommendation only when its documented preconditions and threshold are satisfied.
 4. The system records or returns the triggering evidence, explanation, rule type, and estimated potential savings where applicable.
-5. An optional later LLM service may rewrite the explanation using only validated facts; it cannot change calculated values.
+5. The optional provider-neutral explanation adapter is disabled by default and falls back to deterministic text; it cannot change calculated values.
 6. The frontend presents the result as a suggestion rather than a fact about usage or guaranteed savings.
 7. The user may review, dismiss, or otherwise resolve the recommendation.
 

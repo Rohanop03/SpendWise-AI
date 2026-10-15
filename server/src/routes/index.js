@@ -8,6 +8,7 @@ import { createCategoryRouter, createServiceRouter } from './catalogRoutes.js';
 import { createHealthRouter } from './healthRoutes.js';
 import { createNotificationRouter } from './notificationRoutes.js';
 import { createPaymentRouter } from './paymentRoutes.js';
+import { createRecommendationRouter } from './recommendationRoutes.js';
 import { createSubscriptionRouter } from './subscriptionRoutes.js';
 
 export function createApiRouter(database, appConfig) {
@@ -24,6 +25,7 @@ export function createApiRouter(database, appConfig) {
   router.use('/billing', createBillingRouter(database, auth.authenticate).router);
   router.use('/notifications', createNotificationRouter(database, auth.authenticate).router);
   router.use('/analytics', createAnalyticsRouter(database, auth.authenticate).router);
+  router.use('/recommendations', createRecommendationRouter(database, auth.authenticate).router);
 
   return router;
 }

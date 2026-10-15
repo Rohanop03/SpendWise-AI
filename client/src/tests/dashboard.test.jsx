@@ -12,10 +12,13 @@ const mocks = vi.hoisted(() => ({
   getCategoryAnalytics: vi.fn(),
   getPaymentStatusAnalytics: vi.fn(),
   getPreferences: vi.fn(),
+  getRecommendationSummary: vi.fn(),
+  getRecommendations: vi.fn(),
   getRefundAnalytics: vi.fn(),
   getSpendingTrends: vi.fn(),
   getTopSubscriptions: vi.fn(),
   getUpcomingRenewals: vi.fn(),
+  getUnreadNotificationCount: vi.fn(),
   restoreSession: vi.fn(),
 }));
 
@@ -50,6 +53,13 @@ vi.mock('../api/analytics.js', () => ({
   getTopSubscriptions: mocks.getTopSubscriptions,
 }));
 vi.mock('../api/billing.js', () => ({ getUpcomingRenewals: mocks.getUpcomingRenewals }));
+vi.mock('../api/notifications.js', () => ({
+  getUnreadNotificationCount: mocks.getUnreadNotificationCount,
+}));
+vi.mock('../api/recommendations.js', () => ({
+  getRecommendationSummary: mocks.getRecommendationSummary,
+  getRecommendations: mocks.getRecommendations,
+}));
 
 const userFixture = {
   accountStatus: 'active',
@@ -180,6 +190,13 @@ describe('Stage 8 dashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.restoreSession.mockResolvedValue({ accessToken: 'access-token', user: userFixture });
+    mocks.getUnreadNotificationCount.mockResolvedValue(0);
+    mocks.getRecommendationSummary.mockResolvedValue({
+      activeCount: 0,
+      highPriorityCount: 0,
+      hypotheticalMonthlySavings: [],
+    });
+    mocks.getRecommendations.mockResolvedValue({ recommendations: [] });
     resolveDashboardFixtures();
   });
 

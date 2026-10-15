@@ -2,13 +2,13 @@
 
 > Smart Subscription Tracking & AI-Powered Cost Optimization
 
-SpendWise AI is a full-stack subscription management and cost-optimization project. Stage 9 adds database-backed renewal and trial reminders, a restart-safe background worker, protected notification APIs, and an accessible React Notification Center on top of the Stage 8 financial dashboard.
+SpendWise AI is a full-stack subscription management and cost-optimization project. Stage 10 adds versioned deterministic recommendations, exact hypothetical savings, lifecycle-safe PostgreSQL persistence, a protected Recommendation Center, and dashboard optimization summaries.
 
 The product is built on a PostgreSQL relational database with parameterized node-postgres (`pg`) queries, short-lived JWT authentication, strict user isolation, check constraints, row-level locks for financial integrity, and a responsive React 19 UI.
 
 ## Current Status
 
-**Stage 9 of 12 — Renewal Reminders & Notifications**
+**Stage 10 of 12 — AI-Powered Cost Optimization**
 
 Implemented:
 
@@ -30,7 +30,7 @@ Implemented:
 - **Dual-Token Authentication (Stage 4):** Bcrypt hashing, short-lived JWT access tokens, rotating PostgreSQL-backed refresh sessions with replay detection, HTTP-only cookies, and CSRF protection
 - **Automated Test Coverage:** Node/PostgreSQL integration suites plus Vitest and Testing Library coverage for authentication, subscriptions, payments, analytics, and dashboard behavior
 
-Not implemented yet: external email/SMS/push delivery, AI optimization (Stage 10), advanced DBMS objects (Stage 11), or production deployment (Stage 12).
+Not implemented: external email/SMS/push delivery, an external LLM provider, automatic provider actions, advanced DBMS objects (Stage 11), or production deployment (Stage 12).
 
 ## Technology Stack
 
@@ -225,6 +225,7 @@ See the [ER Diagram](docs/ER_DIAGRAM.md), [Schema Reference](docs/DATABASE_SCHEM
 - [DBMS Analytics SQL Queries](docs/ANALYTICS_SQL_QUERIES.md)
 - [Dashboard Frontend & Integration](docs/DASHBOARD_FRONTEND.md)
 - [Renewal Reminders & Notifications](docs/RENEWAL_NOTIFICATIONS.md)
+- [AI-Powered Cost Optimization](docs/AI_COST_OPTIMIZATION.md)
 - [General Local Setup](docs/LOCAL_SETUP.md)
 
 ## Roadmap
@@ -238,7 +239,7 @@ See the [ER Diagram](docs/ER_DIAGRAM.md), [Schema Reference](docs/DATABASE_SCHEM
 7. Spending Analytics & SQL Reporting — **complete**
 8. Frontend Dashboard & Integration — **complete**
 9. Renewal Reminders & Notifications — **complete**
-10. AI-Powered Cost Optimization
+10. AI-Powered Cost Optimization — **complete**
 11. Advanced DBMS Implementation
 12. Testing, Deployment & Documentation
 
@@ -250,6 +251,6 @@ See the [ER Diagram](docs/ER_DIAGRAM.md), [Schema Reference](docs/DATABASE_SCHEM
 - Subscription CRUD, payment history, refund recording, and forward billing projections are active.
 - Spending analytics, multi-period aggregations, CTE-based double-counting prevention, calendar series generation, and CSV export are active.
 - The dashboard visualizes backend-authoritative totals; browser chart numbers are presentation-only and exact values remain visible in text/tables.
-- Renewal widgets are read-only projections; scheduling and delivery remain Stage 9 work.
+- Renewal reminders and the in-app notification center operate independently from recommendations.
 - The integration test suite may rebuild only the dedicated `spendwise_test` schema.
-- Recommendations remain advisory future records and must be grounded in stored data.
+- Deterministic, PostgreSQL-backed recommendations are active, advisory, currency-separated, and grounded in stored records; optional external AI is disabled.

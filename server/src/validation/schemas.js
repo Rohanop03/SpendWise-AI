@@ -394,6 +394,40 @@ export const notificationQuerySchema = z
   })
   .strict();
 
+export const recommendationQuerySchema = z
+  .object({
+    currencyCode: z
+      .string()
+      .trim()
+      .regex(/^[A-Z]{3}$/)
+      .optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    page: z.coerce.number().int().min(1).default(1),
+    priority: z.enum(['high', 'medium', 'low']).optional(),
+    sortBy: z.enum(['createdAt', 'evaluatedAt', 'priority']).default('priority'),
+    sortOrder: z
+      .enum(['asc', 'desc', 'ASC', 'DESC'])
+      .default('asc')
+      .transform((value) => value.toLowerCase()),
+    status: z.enum(['active', 'dismissed', 'resolved', 'inactive']).default('active'),
+    type: z
+      .enum([
+        'exact_duplicate',
+        'potential_overlap',
+        'high_recurring_cost',
+        'spending_concentration',
+        'renewal_review',
+        'trial_review',
+        'billing_plan_review',
+      ])
+      .optional(),
+  })
+  .strict();
+
+export const recommendationStatusSchema = z
+  .object({ status: z.enum(['active', 'dismissed', 'resolved']) })
+  .strict();
+
 export const analyticsDateRangeSchema = z
   .object({
     currencyCode: z

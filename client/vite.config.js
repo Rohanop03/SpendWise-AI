@@ -9,6 +9,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    fileParallelism: false,
     setupFiles: './src/tests/setup.js',
   },
 });

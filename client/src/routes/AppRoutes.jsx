@@ -17,6 +17,7 @@ import PaymentDetailsPage from '../pages/PaymentDetailsPage.jsx';
 import PaymentsPage from '../pages/PaymentsPage.jsx';
 import RecordPaymentPage from '../pages/RecordPaymentPage.jsx';
 import RegisterPage from '../pages/RegisterPage.jsx';
+import RecommendationsPage from '../pages/RecommendationsPage.jsx';
 import SettingsPage from '../pages/SettingsPage.jsx';
 import SubscriptionDetailsPage from '../pages/SubscriptionDetailsPage.jsx';
 import SubscriptionsPage from '../pages/SubscriptionsPage.jsx';
@@ -60,6 +61,7 @@ function AppRoutes() {
           <Route element={<BillingOverviewPage />} path="billing" />
           <Route element={<AnalyticsPage />} path="analytics" />
           <Route element={<NotificationsPage />} path="notifications" />
+          <Route element={<RecommendationsPage />} path="recommendations" />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>

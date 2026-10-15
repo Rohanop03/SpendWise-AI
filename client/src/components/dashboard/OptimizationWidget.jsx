@@ -31,6 +31,7 @@ export default function OptimizationWidget() {
     <DashboardPanel
       description="Current deterministic cost-review opportunities."
       title="Cost optimization"
+      tone="dark"
     >
       {state.loading ? (
         <WidgetLoading label="optimization insights" />

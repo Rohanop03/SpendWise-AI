@@ -71,10 +71,14 @@ export default function SpendingTrendChart({ widget, onRetry }) {
                 >
                   <ResponsiveContainer height="100%" width="100%">
                     <ComposedChart accessibilityLayer data={plotted} margin={{ left: 0, right: 8 }}>
-                      <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
-                      <XAxis dataKey="period" stroke="#94a3b8" tickFormatter={formatMonth} />
+                      <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="period"
+                        stroke="var(--chart-axis)"
+                        tickFormatter={formatMonth}
+                      />
                       <YAxis
-                        stroke="#94a3b8"
+                        stroke="var(--chart-axis)"
                         tickFormatter={(value) => formatCompactCurrency(value, currency)}
                         width={72}
                       />
@@ -82,24 +86,24 @@ export default function SpendingTrendChart({ widget, onRetry }) {
                       <Legend />
                       <Area
                         dataKey="grossValue"
-                        fill="#10b981"
-                        fillOpacity={0.12}
+                        fill="var(--chart-secondary)"
+                        fillOpacity={0.08}
                         name="Gross payments"
-                        stroke="#34d399"
+                        stroke="var(--chart-secondary)"
                         type="monotone"
                       />
                       <Line
                         dataKey="refundValue"
                         dot={false}
                         name="Completed refunds"
-                        stroke="#fbbf24"
+                        stroke="var(--chart-warning)"
                         strokeWidth={2}
                         type="monotone"
                       />
                       <Line
                         dataKey="netValue"
                         name="Net cash flow"
-                        stroke="#38bdf8"
+                        stroke="var(--chart-axis)"
                         strokeWidth={3}
                         type="monotone"
                       />

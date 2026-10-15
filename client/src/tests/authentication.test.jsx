@@ -57,9 +57,23 @@ function renderApp(path) {
 describe('frontend authentication', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
+    delete document.documentElement.dataset.theme;
     mocks.restoreSession.mockRejectedValue(new Error('No session'));
     mocks.getPreferences.mockResolvedValue({ preferences: { preferredCurrency: 'USD' } });
     mocks.getUnreadNotificationCount.mockResolvedValue(0);
+  });
+
+  it('toggles and persists the color theme', async () => {
+    const user = userEvent.setup();
+    renderApp('/login');
+
+    const themeToggle = await screen.findByRole('button', { name: 'Switch to dark mode' });
+    await user.click(themeToggle);
+
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
+    expect(window.localStorage.getItem('spendwise-theme')).toBe('dark');
+    expect(screen.getByRole('button', { name: 'Switch to light mode' })).toBeInTheDocument();
   });
 
   it('renders login and toggles password visibility', async () => {

@@ -72,7 +72,7 @@ function HomePage() {
   return (
     <>
       <section className="relative isolate overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_22%,rgba(52,211,153,0.16),transparent_30%),radial-gradient(circle_at_82%_28%,rgba(34,211,238,0.13),transparent_27%),linear-gradient(to_bottom,#07111f,#020617)]" />
+        <div className="home-hero-background absolute inset-0 -z-10" />
         <div className="mx-auto grid min-h-[670px] max-w-7xl items-center gap-14 px-5 py-20 sm:px-8 lg:grid-cols-[1.15fr_0.85fr] lg:px-10 lg:py-28">
           <div>
             <div className="mb-8">
@@ -140,7 +140,7 @@ function HomePage() {
             </div>
           </div>
 
-          <aside className="relative rounded-[2rem] border border-white/10 bg-white/[0.055] p-7 shadow-2xl shadow-black/30 backdrop-blur sm:p-9">
+          <aside className="premium-dark relative rounded-[2rem] border border-white/10 bg-white/[0.055] p-7 shadow-2xl shadow-black/30 backdrop-blur sm:p-9">
             <div className="absolute -right-6 -top-6 size-24 rounded-full bg-emerald-300/15 blur-2xl" />
             <p className="text-sm font-semibold text-emerald-300">All-in-one financial oversight</p>
             <h2 className="mt-3 text-2xl font-bold text-white">

@@ -42,13 +42,22 @@ export default function TopSubscriptionsChart({ currencyCode, widget, onRetry })
                 layout="vertical"
                 margin={{ left: 12 }}
               >
-                <CartesianGrid horizontal={false} stroke="#1e293b" strokeDasharray="3 3" />
+                <CartesianGrid
+                  horizontal={false}
+                  stroke="var(--chart-grid)"
+                  strokeDasharray="3 3"
+                />
                 <XAxis
-                  stroke="#94a3b8"
+                  stroke="var(--chart-axis)"
                   tickFormatter={(value) => formatCompactCurrency(value, currencyCode)}
                   type="number"
                 />
-                <YAxis dataKey="serviceName" stroke="#94a3b8" type="category" width={92} />
+                <YAxis
+                  dataKey="serviceName"
+                  stroke="var(--chart-axis)"
+                  type="category"
+                  width={92}
+                />
                 <Tooltip
                   formatter={(_value, _name, item) => [
                     formatCurrency(item.payload.grossPayments, currencyCode),
@@ -57,7 +66,7 @@ export default function TopSubscriptionsChart({ currencyCode, widget, onRetry })
                 />
                 <Bar
                   dataKey="spendValue"
-                  fill="#818cf8"
+                  fill="var(--chart-primary)"
                   name="Historical gross spending"
                   radius={5}
                 />

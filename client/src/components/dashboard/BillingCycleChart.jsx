@@ -42,10 +42,10 @@ export default function BillingCycleChart({ widget, onRetry }) {
                       monthlyValue: toChartNumber(row.estimatedMonthlyTotal),
                     }))}
                   >
-                    <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
-                    <XAxis dataKey="cycleLabel" stroke="#94a3b8" />
+                    <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" />
+                    <XAxis dataKey="cycleLabel" stroke="var(--chart-axis)" />
                     <YAxis
-                      stroke="#94a3b8"
+                      stroke="var(--chart-axis)"
                       tickFormatter={(value) => formatCompactCurrency(value, currency)}
                       width={72}
                     />
@@ -57,7 +57,7 @@ export default function BillingCycleChart({ widget, onRetry }) {
                     />
                     <Bar
                       dataKey="monthlyValue"
-                      fill="#22d3ee"
+                      fill="var(--chart-primary)"
                       name="Monthly equivalent"
                       radius={6}
                     />

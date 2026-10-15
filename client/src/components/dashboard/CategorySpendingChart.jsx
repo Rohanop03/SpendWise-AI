@@ -56,13 +56,22 @@ export default function CategorySpendingChart({ widget, onRetry }) {
                       layout="vertical"
                       margin={{ left: 12 }}
                     >
-                      <CartesianGrid horizontal={false} stroke="#1e293b" strokeDasharray="3 3" />
+                      <CartesianGrid
+                        horizontal={false}
+                        stroke="var(--chart-grid)"
+                        strokeDasharray="3 3"
+                      />
                       <XAxis
-                        stroke="#94a3b8"
+                        stroke="var(--chart-axis)"
                         tickFormatter={(value) => formatCompactCurrency(value, currency)}
                         type="number"
                       />
-                      <YAxis dataKey="categoryName" stroke="#94a3b8" type="category" width={88} />
+                      <YAxis
+                        dataKey="categoryName"
+                        stroke="var(--chart-axis)"
+                        type="category"
+                        width={88}
+                      />
                       <Tooltip
                         formatter={(value, name, item) => [
                           formatCurrency(
@@ -77,14 +86,24 @@ export default function CategorySpendingChart({ widget, onRetry }) {
                         ]}
                       />
                       <Legend />
-                      <Bar dataKey="grossValue" fill="#34d399" name="Gross spending" radius={4} />
+                      <Bar
+                        dataKey="grossValue"
+                        fill="var(--chart-secondary)"
+                        name="Gross spending"
+                        radius={6}
+                      />
                       <Bar
                         dataKey="refundValue"
-                        fill="#fbbf24"
+                        fill="var(--chart-warning)"
                         name="Completed refunds"
                         radius={4}
                       />
-                      <Bar dataKey="netValue" fill="#38bdf8" name="Net cash flow" radius={4} />
+                      <Bar
+                        dataKey="netValue"
+                        fill="var(--chart-muted)"
+                        name="Net cash flow"
+                        radius={6}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

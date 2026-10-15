@@ -1,6 +1,8 @@
-export function DashboardPanel({ children, description, title }) {
+export function DashboardPanel({ children, description, title, tone = 'light' }) {
   return (
-    <section className="min-w-0 rounded-3xl border border-white/10 bg-slate-900/65 p-5 shadow-xl shadow-black/10 sm:p-6">
+    <section
+      className={`min-w-0 rounded-3xl border border-white/10 bg-slate-900/65 p-5 shadow-xl shadow-black/10 sm:p-6 ${tone === 'dark' ? 'premium-dark' : ''}`}
+    >
       <div className="mb-5">
         <h2 className="text-lg font-bold tracking-tight text-white">{title}</h2>
         {description && <p className="mt-1 text-sm leading-6 text-slate-400">{description}</p>}

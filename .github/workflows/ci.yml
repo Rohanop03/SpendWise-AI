@@ -55,7 +55,7 @@ jobs:
         run: npm run lint
 
       - name: Run server unit tests
-        run: npm test --workspace server
+        run: npm run test:unit --workspace server
 
       - name: Run database integration test suite
         run: npm run test:db --workspace server

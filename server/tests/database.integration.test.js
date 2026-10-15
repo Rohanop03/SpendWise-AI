@@ -12,8 +12,15 @@ import { defaultMigrationsDirectory, runMigrations } from '../src/db/migrationRu
 
 const expectedTestDatabaseName = 'spendwise_test';
 
-async function expectPostgresError(promise, expectedCode) {
-  await assert.rejects(promise, (error) => error.code === expectedCode);
+async function expectPostgresError(promise, expectedCode, expectedConstraint) {
+  const expectedCodes = Array.isArray(expectedCode) ? expectedCode : [expectedCode];
+
+  await assert.rejects(
+    promise,
+    (error) =>
+      expectedCodes.includes(error.code) &&
+      (expectedConstraint === undefined || error.constraint === expectedConstraint),
+  );
 }
 
 async function insertUser(database, suffix) {
@@ -318,7 +325,8 @@ if (!config.testDatabaseUrl) {
       );
       await expectPostgresError(
         database.query(`DELETE FROM users WHERE id = $1`, [firstUserId]),
-        '23001',
+        ['23001', '23503'],
+        'fk_subscriptions_user',
       );
     });
 

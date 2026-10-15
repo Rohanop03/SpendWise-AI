@@ -15,7 +15,8 @@
     "reminders:worker": "node scripts/startReminderWorker.js",
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "test": "node --test --test-concurrency=1",
+    "test": "npm run test:unit && npm run test:db",
+    "test:unit": "node --test --test-concurrency=1 tests/database.test.js tests/health.test.js tests/recommendationEngine.test.js tests/reminder.test.js tests/reminderWorker.test.js",
     "test:db": "node --test --test-concurrency=1 tests/database.integration.test.js tests/auth.integration.test.js tests/subscription.integration.test.js tests/payment.integration.test.js tests/analytics.integration.test.js tests/notification.integration.test.js tests/recommendation.integration.test.js tests/advancedDb.integration.test.js tests/security.integration.test.js",
     "lint": "eslint src tests db scripts"
   },

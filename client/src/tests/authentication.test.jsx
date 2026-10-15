@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   getPreferences: vi.fn(),
   loginAccount: vi.fn(),
   logoutAccount: vi.fn(),
+  getUnreadNotificationCount: vi.fn(),
   registerAccount: vi.fn(),
   restoreSession: vi.fn(),
   updatePreferences: vi.fn(),
@@ -28,6 +29,10 @@ vi.mock('../api/account.js', () => ({
   getPreferences: mocks.getPreferences,
   updatePreferences: mocks.updatePreferences,
   updateProfile: mocks.updateProfile,
+}));
+
+vi.mock('../api/notifications.js', () => ({
+  getUnreadNotificationCount: mocks.getUnreadNotificationCount,
 }));
 
 const userFixture = {
@@ -54,6 +59,7 @@ describe('frontend authentication', () => {
     vi.clearAllMocks();
     mocks.restoreSession.mockRejectedValue(new Error('No session'));
     mocks.getPreferences.mockResolvedValue({ preferences: { preferredCurrency: 'USD' } });
+    mocks.getUnreadNotificationCount.mockResolvedValue(0);
   });
 
   it('renders login and toggles password visibility', async () => {

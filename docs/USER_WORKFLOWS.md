@@ -153,8 +153,8 @@
 1. The user enables reminders and selects a lead time in preferences.
 2. A scheduled background process runs at a documented interval.
 3. The process identifies active/trial subscriptions whose renewal or trial-expiration date falls in the user's reminder window.
-4. It checks whether the logical reminder has already been created.
-5. The system creates one in-app notification for each new qualifying occurrence.
+4. PostgreSQL atomically enforces one reminder per user, subscription, kind, and target date.
+5. The system creates one in-app notification for each new qualifying occurrence; paused, cancelled, archived, disabled, and overdue events create none.
 6. The user sees an unread indicator and opens the notification center.
 7. The user reads or marks the notification as read.
 

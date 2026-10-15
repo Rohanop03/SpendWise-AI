@@ -20,6 +20,7 @@ const quickLinks = [
   ['/payments/new', 'Record payment'],
   ['/billing', 'Review billing schedule'],
   ['/analytics', 'Open detailed analytics'],
+  ['/notifications', 'Review notifications'],
 ];
 
 export default function DashboardPage() {

@@ -382,6 +382,18 @@ export const billingQuerySchema = z
   })
   .strict();
 
+export const notificationQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    page: z.coerce.number().int().min(1).default(1),
+    type: z.enum(['renewal', 'trial_expiration', 'system']).optional(),
+    unreadOnly: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+  })
+  .strict();
+
 export const analyticsDateRangeSchema = z
   .object({
     currencyCode: z

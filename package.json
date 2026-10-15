@@ -16,6 +16,8 @@
     "db:migrate": "npm run db:migrate --workspace server",
     "db:seed": "npm run db:seed --workspace server",
     "db:seed:demo": "npm run db:seed:demo --workspace server",
+    "reminders:run-once": "npm run reminders:run-once --workspace server",
+    "reminders:worker": "npm run reminders:worker --workspace server",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:db": "npm run test:db --workspace server",

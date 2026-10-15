@@ -51,7 +51,11 @@ if (!config.testDatabaseUrl) {
       });
 
       const migrations = await runMigrations({ database });
-      assert.deepEqual(migrations.applied, ['001_initial_schema', '002_auth_sessions']);
+      assert.deepEqual(migrations.applied, [
+        '001_initial_schema',
+        '002_auth_sessions',
+        '003_notification_target_dates',
+      ]);
     });
 
     beforeEach(async () => {

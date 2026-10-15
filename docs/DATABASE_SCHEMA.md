@@ -144,7 +144,7 @@ Index: payment and newest refund date. The cross-row rule that completed refunds
 
 ## `notifications`
 
-Stores future in-app renewal, trial-expiration, and system notifications; Stage 3 does not implement a scheduler.
+Stores in-app renewal, trial-expiration, and system notifications. Stage 9 generates reminders with an independent worker.
 
 | Column | Type | Null/default | Rules |
 | --- | --- | --- | --- |
@@ -155,12 +155,13 @@ Stores future in-app renewal, trial-expiration, and system notifications; Stage 
 | `title` | `VARCHAR(160)` | not null | Trimmed length 1–160 |
 | `message` | `TEXT` | not null | Trimmed length 1–4,000 |
 | `scheduled_for` | `TIMESTAMPTZ` | not null | Intended delivery event |
+| `target_event_date` | `DATE` | nullable for system only | Required renewal/trial event date |
 | `is_read` | `BOOLEAN` | `false` | Read state |
 | `read_at` | `TIMESTAMPTZ` | nullable | Present exactly when read |
 | `deduplication_key` | `VARCHAR(200)` | not null | Unique with `user_id` |
 | `created_at` | `TIMESTAMPTZ` | current timestamp | Creation event |
 
-Non-system notifications require a subscription. Indexes support unread lists and pending schedule scans.
+Non-system notifications require a subscription and target date. Indexes support unread lists and pending schedule scans. Migration `003_notification_target_dates.sql` adds a partial unique index over user, subscription, type, and target date so concurrent worker processes cannot duplicate a logical reminder event.
 
 ## `recommendations`
 

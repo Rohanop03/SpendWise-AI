@@ -96,7 +96,11 @@ if (!config.testDatabaseUrl) {
       });
 
       const migrationResult = await runMigrations({ database });
-      assert.deepEqual(migrationResult.applied, ['001_initial_schema', '002_auth_sessions']);
+      assert.deepEqual(migrationResult.applied, [
+        '001_initial_schema',
+        '002_auth_sessions',
+        '003_notification_target_dates',
+      ]);
     });
 
     beforeEach(async () => {
@@ -278,8 +282,8 @@ if (!config.testDatabaseUrl) {
           `
             INSERT INTO notifications (
               user_id, subscription_id, notification_type, title, message,
-              scheduled_for, deduplication_key
-            ) VALUES ($1, $2, 'renewal', 'Wrong owner', 'Must fail', CURRENT_TIMESTAMP, 'wrong-owner')
+              scheduled_for, target_event_date, deduplication_key
+            ) VALUES ($1, $2, 'renewal', 'Wrong owner', 'Must fail', CURRENT_TIMESTAMP, CURRENT_DATE, 'wrong-owner')
           `,
           [secondUserId, subscriptionId],
         ),
@@ -405,7 +409,11 @@ if (!config.testDatabaseUrl) {
     it('tracks migrations, skips reruns, and rolls back an invalid migration', async () => {
       const secondRun = await runMigrations({ database });
       assert.deepEqual(secondRun.applied, []);
-      assert.deepEqual(secondRun.skipped, ['001_initial_schema', '002_auth_sessions']);
+      assert.deepEqual(secondRun.skipped, [
+        '001_initial_schema',
+        '002_auth_sessions',
+        '003_notification_target_dates',
+      ]);
 
       const initialTracking = await database.query(
         `SELECT checksum FROM schema_migrations WHERE migration_id = $1`,
@@ -426,6 +434,10 @@ if (!config.testDatabaseUrl) {
         await copyFile(
           path.join(defaultMigrationsDirectory, '002_auth_sessions.sql'),
           path.join(temporaryDirectory, '002_auth_sessions.sql'),
+        );
+        await copyFile(
+          path.join(defaultMigrationsDirectory, '003_notification_target_dates.sql'),
+          path.join(temporaryDirectory, '003_notification_target_dates.sql'),
         );
         await writeFile(
           path.join(temporaryDirectory, '900_valid_probe.sql'),

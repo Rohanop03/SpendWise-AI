@@ -131,6 +131,16 @@ export function loadConfig(environment = process.env) {
     jwtAccessSecret: parseJwtSecret(environment.JWT_ACCESS_SECRET),
     nodeEnv: parseNodeEnvironment(environment.NODE_ENV),
     port: parsePort(environment.PORT),
+    reminderBatchSize: parseInteger(environment.REMINDER_BATCH_SIZE, 'REMINDER_BATCH_SIZE', {
+      defaultValue: 500,
+      maximum: 5000,
+      minimum: 1,
+    }),
+    reminderIntervalMinutes: parseInteger(
+      environment.REMINDER_INTERVAL_MINUTES,
+      'REMINDER_INTERVAL_MINUTES',
+      { defaultValue: 60, maximum: 1440, minimum: 1 },
+    ),
     refreshTokenExpiresDays: parseInteger(
       environment.REFRESH_TOKEN_EXPIRES_DAYS,
       'REFRESH_TOKEN_EXPIRES_DAYS',

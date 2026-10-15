@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../auth/useAuth.js';
 import BrandMark from '../components/BrandMark.jsx';
+import NotificationBell from '../components/notifications/NotificationBell.jsx';
 
 const authenticatedLinks = [
   ['/dashboard', 'Dashboard'],
@@ -9,6 +10,7 @@ const authenticatedLinks = [
   ['/payments', 'Payments'],
   ['/billing', 'Billing'],
   ['/analytics', 'Analytics'],
+  ['/notifications', 'Notifications'],
   ['/account', 'Account'],
   ['/settings', 'Settings'],
 ];
@@ -46,7 +48,8 @@ function AppLayout() {
           </Link>
 
           {!isInitializing && isAuthenticated ? (
-            <>
+            <div className="flex items-center gap-2">
+              <NotificationBell />
               <nav
                 aria-label="Primary navigation"
                 className="hidden items-center gap-1 text-xs font-semibold xl:flex"
@@ -103,7 +106,7 @@ function AppLayout() {
                   </div>
                 </nav>
               </details>
-            </>
+            </div>
           ) : (
             <nav
               aria-label="Account navigation"
@@ -132,7 +135,7 @@ function AppLayout() {
       <footer className="border-t border-white/10 bg-slate-950">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-8 text-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
           <p>SpendWise AI · Clear subscription and cash-flow records.</p>
-          <p>Stage 8: frontend dashboard & integration</p>
+          <p>Stage 9: renewal reminders & notifications</p>
         </div>
       </footer>
     </div>

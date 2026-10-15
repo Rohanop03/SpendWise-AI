@@ -89,7 +89,7 @@ The reminder subsystem is a background worker or scheduled process conceptually 
 4. Record enough occurrence context to prevent duplicates.
 5. Log failures safely and permit retries.
 
-Stage 9 will select the scheduling mechanism. The design should allow the scheduler and API to share validated services/database access without embedding scheduler execution inside ordinary page requests.
+Stage 9 uses a separately started Node.js reminder worker. The worker and API share repository/database conventions without embedding scheduler execution inside ordinary page requests; PostgreSQL uniqueness keeps concurrent worker instances idempotent.
 
 ## 6. AI Recommendation Service
 

@@ -12,6 +12,7 @@ import EditSubscriptionPage from '../pages/EditSubscriptionPage.jsx';
 import HomePage from '../pages/HomePage.jsx';
 import LoginPage from '../pages/LoginPage.jsx';
 import NotFoundPage from '../pages/NotFoundPage.jsx';
+import NotificationsPage from '../pages/NotificationsPage.jsx';
 import PaymentDetailsPage from '../pages/PaymentDetailsPage.jsx';
 import PaymentsPage from '../pages/PaymentsPage.jsx';
 import RecordPaymentPage from '../pages/RecordPaymentPage.jsx';
@@ -58,6 +59,7 @@ function AppRoutes() {
           <Route element={<PaymentDetailsPage />} path="payments/:id" />
           <Route element={<BillingOverviewPage />} path="billing" />
           <Route element={<AnalyticsPage />} path="analytics" />
+          <Route element={<NotificationsPage />} path="notifications" />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>

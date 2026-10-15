@@ -157,7 +157,7 @@ Rules and presentation constraints:
 | ID | Requirement | Verification target |
 | --- | --- | --- |
 | NFR-SCL-01 | The API should remain stateless for ordinary authenticated requests unless a documented session component is introduced. | Multiple API instances can process requests using shared persistent state and compatible signing configuration. |
-| NFR-SCL-02 | Background work must be separated conceptually from request processing. | Scheduler responsibilities and idempotency boundaries are documented before Stage 9 implementation. |
+| NFR-SCL-02 | Background work must be separated conceptually from request processing. | The Stage 9 reminder worker runs separately from Express with bounded batches and database-backed idempotency. |
 | NFR-SCL-03 | Scaling claims must be supported by later load tests. | Documentation reports measured limits and environment details rather than using unsupported production-scale claims. |
 
 ### 3.6 Accessibility

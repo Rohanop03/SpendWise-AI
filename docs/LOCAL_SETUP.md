@@ -239,4 +239,15 @@ Recharts is installed in the client workspace. If dependencies or the lockfile a
 
 ## 13. Current Stage Boundaries
 
-Stages 1–8 provide account authentication, subscription management, payment/refund records, billing projections, SQL analytics, CSV reporting, and the integrated frontend dashboard. Scheduler execution, notification delivery, AI recommendations, bank/payment-provider integrations, and production deployment remain outside the current stage.
+Stages 1–9 provide account authentication, subscription management, payment/refund records, billing projections, SQL analytics, the dashboard, and database-backed in-app reminders. External delivery, AI recommendations, bank/payment-provider integrations, and production deployment remain outside the current stage.
+
+## 14. Reminder Worker
+
+Run the API and reminder worker as separate processes after applying migrations:
+
+```powershell
+npm run dev:server
+npm run reminders:worker
+```
+
+Use `npm run reminders:run-once` for a single safe scan. Configure `REMINDER_INTERVAL_MINUTES` and `REMINDER_BATCH_SIZE` in the private server environment. Stop the recurring worker with `Ctrl+C`; it waits for an active scan and closes its pool. See [Renewal Reminders and Notifications](RENEWAL_NOTIFICATIONS.md).

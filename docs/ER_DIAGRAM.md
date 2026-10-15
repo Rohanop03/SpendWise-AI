@@ -1,6 +1,6 @@
 # SpendWise AI Entity-Relationship Diagram
 
-This diagram represents migration `001_initial_schema.sql`. Crow's-foot markers show cardinality; `o` marks an optional relationship. `schema_migrations` is an operational table used by the migration runner and has no domain relationships.
+This diagram represents migrations `001_initial_schema.sql` through `003_notification_target_dates.sql`. Crow's-foot markers show cardinality; `o` marks an optional relationship. `schema_migrations` is an operational table used by the migration runner and has no domain relationships.
 
 ```mermaid
 erDiagram
@@ -87,6 +87,7 @@ erDiagram
     bigint user_id FK
     bigint subscription_id FK
     varchar notification_type
+    date target_event_date
     timestamptz scheduled_for
     boolean is_read
     varchar deduplication_key UK

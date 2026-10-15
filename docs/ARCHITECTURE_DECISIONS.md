@@ -291,9 +291,18 @@ The database health endpoint intentionally uses `database: "unavailable"` withou
 
 **Consequences:** Analytics interfaces and API payloads clearly distinguish committed recurring run-rates from realized cash flow. The API returns real signed net amounts (e.g., `-45.00`) and the UI renders them appropriately with distinct refund badges and indicators.
 
+## ADR-031: User-Local Reminder Windows with Database-Enforced Event Identity
+
+**Status:** Accepted in Stage 9
+
+**Decision:** Evaluate an inclusive threshold-to-target window using the user's IANA timezone and date-only subscription fields. Persist the target date and enforce one renewal/trial notification per user, subscription, kind, and target date with a partial unique index plus `INSERT ... ON CONFLICT DO NOTHING`. Run the scanner independently from Express.
+
+**Rationale:** Date-only billing terms must not shift across timezones, worker downtime needs bounded catch-up, and multiple/restarted processes must remain safe without an in-memory lock.
+
+**Consequences:** Overdue dates create no new reminder, historical reminders remain immutable, changed target dates may create a new event, and worker deployment is a separate process. In-app delivery does not imply payment or external-provider action.
+
 ## Deferred Decisions
 
-- Automated renewal reminder notifications: Stage 9
 - AI-powered optimization rules and recommendation engine: Stage 10
 - Materialized views, database triggers, stored procedures, and row-level security: Stage 11
 - Production hosting, TLS termination, monitoring, backups, and recovery: Stage 12

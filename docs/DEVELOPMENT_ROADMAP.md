@@ -219,6 +219,8 @@
 
 ### Stage 9 — Renewal Reminders & Notifications
 
+**Status:** Complete
+
 **Objective:** notify users of upcoming renewals and trial expirations according to per-user preferences.
 
 **Major deliverables:**

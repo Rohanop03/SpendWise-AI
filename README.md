@@ -2,15 +2,17 @@
 
 > Smart Subscription Tracking & AI-Powered Cost Optimization
 
-SpendWise AI is a full-stack subscription management and cost-optimization project. Stage 8 adds a polished, responsive financial dashboard over the Stage 7 Spending Analytics & SQL Reporting engine, enabling authenticated users to explore cash flow, categories, subscription rankings, billing commitments, payment states, refunds, and upcoming renewals with strict currency isolation.
+SpendWise AI is a full-stack subscription management and cost-optimization project. Stage 9 adds database-backed renewal and trial reminders, a restart-safe background worker, protected notification APIs, and an accessible React Notification Center on top of the Stage 8 financial dashboard.
 
 The product is built on a PostgreSQL relational database with parameterized node-postgres (`pg`) queries, short-lived JWT authentication, strict user isolation, check constraints, row-level locks for financial integrity, and a responsive React 19 UI.
 
 ## Current Status
 
-**Stage 8 of 12 — Frontend Dashboard & Integration**
+**Stage 9 of 12 — Renewal Reminders & Notifications**
 
 Implemented:
+
+- **Renewal Reminders & Notifications:** User-local renewal/trial windows, PostgreSQL-enforced event idempotency, one-shot and recurring worker commands, protected list/read APIs, unread bell, and Notification Center (see [RENEWAL_NOTIFICATIONS.md](docs/RENEWAL_NOTIFICATIONS.md))
 
 - **Integrated Financial Dashboard:** Protected `/dashboard` route with shared period/currency filters, financial KPIs, Recharts visualizations, payment/refund summaries, upcoming renewals, partial-failure recovery, and accessible exact-value alternatives (see [DASHBOARD_FRONTEND.md](docs/DASHBOARD_FRONTEND.md))
 - **Responsive Application Navigation:** Active desktop navigation, compact mobile menu, dashboard landing after authentication, and preserved public homepage behavior
@@ -28,15 +30,15 @@ Implemented:
 - **Dual-Token Authentication (Stage 4):** Bcrypt hashing, short-lived JWT access tokens, rotating PostgreSQL-backed refresh sessions with replay detection, HTTP-only cookies, and CSRF protection
 - **Automated Test Coverage:** Node/PostgreSQL integration suites plus Vitest and Testing Library coverage for authentication, subscriptions, payments, analytics, and dashboard behavior
 
-Not implemented yet: renewal reminder workers (Stage 9), AI optimization (Stage 10), advanced DBMS objects (Stage 11), or production deployment (Stage 12).
+Not implemented yet: external email/SMS/push delivery, AI optimization (Stage 10), advanced DBMS objects (Stage 11), or production deployment (Stage 12).
 
 ## Technology Stack
 
 | Layer | Implemented | Planned later |
 | --- | --- | --- |
-| Frontend | React 19, Vite 8, Tailwind CSS 4, React Router 7, Axios, Recharts, Vitest, Testing Library | Notification center |
-| Backend | Node.js 22, Express 5, bcrypt, jsonwebtoken, cookie-parser, express-rate-limit, zod, raw `pg` | Analytics repositories, reporting views, notification scheduler |
-| Database | PostgreSQL 18.6, raw parameterized SQL with `pg`, migrations `001_initial_schema` and `002_auth_sessions` | Advanced reports, views, triggers, and measured DBMS optimization |
+| Frontend | React 19, Vite 8, Tailwind CSS 4, React Router 7, Axios, Recharts, Notification Center, Vitest, Testing Library | AI recommendation views |
+| Backend | Node.js 22, Express 5, authenticated notification APIs, independent reminder worker, zod, raw `pg` | AI recommendation engine |
+| Database | PostgreSQL 18.6, raw parameterized SQL with `pg`, migrations `001`–`003`, atomic notification idempotency | Advanced views, triggers, and measured DBMS optimization |
 | Quality | npm workspaces, ESLint 9, Prettier, Node test runner, Vitest, Supertest, PostgreSQL integration tests | End-to-end browser testing |
 
 No ORM is used. Direct PostgreSQL and SQL are central DBMS objectives.
@@ -105,6 +107,8 @@ Open the frontend at `http://localhost:5173` and backend health at `http://local
 | `npm run db:migrate` | Apply pending transactional SQL migrations |
 | `npm run db:seed` | Idempotently seed shared catalogs |
 | `npm run db:seed:demo` | Seed guarded fictional development fixtures |
+| `npm run reminders:run-once` | Run one safe reminder eligibility scan |
+| `npm run reminders:worker` | Start the independent recurring reminder worker |
 | `npm run test:db` | Rebuild and test only the configured `spendwise_test` database |
 | `npm run lint` | Lint both workspaces |
 | `npm run test` | Run all server tests; DB integration skips without `TEST_DATABASE_URL` |
@@ -148,6 +152,10 @@ All APIs use the `/api/v1` prefix.
 | `POST` | `/api/v1/payments/:id/refunds` | Record a partial or full refund with row-level lock | Bearer JWT | Yes |
 | `GET` | `/api/v1/billing/overview` | Normalized recurring costs grouped by currency | Bearer JWT | Yes |
 | `GET` | `/api/v1/billing/upcoming` | Upcoming renewals and unconfirmed overdue alerts | Bearer JWT | Yes |
+| `GET` | `/api/v1/notifications` | List owned notifications with pagination and filters | Bearer JWT | Yes |
+| `GET` | `/api/v1/notifications/unread-count` | Count owned unread notifications | Bearer JWT | Yes |
+| `PATCH` | `/api/v1/notifications/:id/read` | Idempotently mark one owned notification read | Bearer JWT | Yes |
+| `PATCH` | `/api/v1/notifications/read-all` | Mark all owned notifications read | Bearer JWT | Yes |
 | `GET` | `/api/v1/analytics/overview` | Gross, refund, and net spending totals with active counts | Bearer JWT | Yes |
 | `GET` | `/api/v1/analytics/trends` | Monthly cash-flow time series with calendar gap-filling | Bearer JWT | Yes |
 | `GET` | `/api/v1/analytics/categories` | Category spending breakdown with refunds and % of gross | Bearer JWT | Yes |
@@ -178,6 +186,8 @@ REFRESH_TOKEN_EXPIRES_DAYS=7
 BCRYPT_COST=12
 AUTH_RATE_LIMIT_MAX=10
 COOKIE_SECURE=false
+REMINDER_INTERVAL_MINUTES=60
+REMINDER_BATCH_SIZE=500
 ```
 
 `TEST_DATABASE_URL` is used only by integration tests. Demo seed additionally requires `NODE_ENV=development`, `ALLOW_DEMO_SEED=true`, and a connection to exactly `spendwise_dev`. Client-side `VITE_` values are public and must never contain secrets.
@@ -214,6 +224,7 @@ See the [ER Diagram](docs/ER_DIAGRAM.md), [Schema Reference](docs/DATABASE_SCHEM
 - [Spending Analytics Engine](docs/SPENDING_ANALYTICS.md)
 - [DBMS Analytics SQL Queries](docs/ANALYTICS_SQL_QUERIES.md)
 - [Dashboard Frontend & Integration](docs/DASHBOARD_FRONTEND.md)
+- [Renewal Reminders & Notifications](docs/RENEWAL_NOTIFICATIONS.md)
 - [General Local Setup](docs/LOCAL_SETUP.md)
 
 ## Roadmap
@@ -226,7 +237,7 @@ See the [ER Diagram](docs/ER_DIAGRAM.md), [Schema Reference](docs/DATABASE_SCHEM
 6. Payment Tracking & Billing Management — **complete**
 7. Spending Analytics & SQL Reporting — **complete**
 8. Frontend Dashboard & Integration — **complete**
-9. Renewal Reminders & Notifications — **next stage**
+9. Renewal Reminders & Notifications — **complete**
 10. AI-Powered Cost Optimization
 11. Advanced DBMS Implementation
 12. Testing, Deployment & Documentation

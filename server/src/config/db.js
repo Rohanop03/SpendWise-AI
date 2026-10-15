@@ -23,12 +23,18 @@ export function createDatabase({
     }
 
     if (!pool) {
-      pool = poolFactory({
+      const poolOptions = {
         connectionString,
         connectionTimeoutMillis: 3000,
         idleTimeoutMillis: 10000,
         max: 10,
-      });
+      };
+
+      if (config.databaseSsl) {
+        poolOptions.ssl = { rejectUnauthorized: true };
+      }
+
+      pool = poolFactory(poolOptions);
 
       pool.on('error', () => {
         console.error('An unexpected PostgreSQL pool error occurred.');

@@ -316,6 +316,8 @@
 - Known risks, measured performance, supported environments, and non-production limitations are stated honestly.
 - A reviewer can reproduce the project and follow the DBMS demonstration from the documentation.
 
+**Delivered:** Centralized security headers (`nosniff`, `DENY`, HSTS, COOP), proxy trust configuration, dedicated cross-account penetration and security test suite (`security.integration.test.js`), Playwright browser test specs (`e2e/`), deterministic 21-workflow verification runner (`verifyUserJourneys.js`), GitHub Actions CI pipeline (`.github/workflows/ci.yml`), production containerization (`Dockerfile`, `docker-compose.yml`), cloud blueprints (`render.yaml`, `vercel.json`, `_redirects`), and complete documentation suite (`FINAL_PROJECT_REPORT.md`, `API_REFERENCE.md`, `USER_GUIDE.md`, `DEPLOYMENT_GUIDE.md`, `FINAL_TESTING_REPORT.md`, `PROJECT_DEMO_SCRIPT.md`, and ADRs 038–040). See `docs/FINAL_PROJECT_REPORT.md`.
+
 ## 4. Cross-Stage Decision Log
 
 The following decisions must be resolved and documented in their owning stages:

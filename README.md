@@ -2,48 +2,38 @@
 
 > Smart Subscription Tracking & AI-Powered Cost Optimization
 
-SpendWise AI is a full-stack subscription management and cost-optimization project. Stage 11 adds PostgreSQL functions, a bounded procedure, transactional auditing, secure views, isolation/deadlock demonstrations, and measured query optimization.
+SpendWise AI is a university DBMS capstone project and production-grade full-stack platform designed to track recurring subscriptions, maintain an immutable billing ledger, generate explainable cost-reduction recommendations, and provide deep SQL-powered financial analytics.
 
-The product is built on a PostgreSQL relational database with parameterized node-postgres (`pg`) queries, short-lived JWT authentication, strict user isolation, check constraints, row-level locks for financial integrity, and a responsive React 19 UI.
+The application is built on a PostgreSQL 18.6 relational engine with raw parameterized queries (`pg`), short-lived JWT access tokens, HttpOnly rotating refresh sessions, check constraints, row-level locks for financial integrity, defensive HTTP security headers, and a responsive React 19 UI.
 
 ## Current Status
 
-**Stage 11 of 12 — Advanced DBMS Implementation & Database Optimization**
+**Stage 12 of 12 — Final Testing, Security Hardening, Deployment & Documentation (COMPLETED)**
 
-Implemented:
+All 12 development stages are fully implemented, verified, and documented:
 
-- **Advanced PostgreSQL:** Exact cost and financial-summary functions, stale-recommendation procedure, transactional subscription audit trigger, security-invoker financial views, deterministic isolation/deadlock demos, and a measured partial covering index (see [ADVANCED_DBMS.md](docs/ADVANCED_DBMS.md))
-
-- **Renewal Reminders & Notifications:** User-local renewal/trial windows, PostgreSQL-enforced event idempotency, one-shot and recurring worker commands, protected list/read APIs, unread bell, and Notification Center (see [RENEWAL_NOTIFICATIONS.md](docs/RENEWAL_NOTIFICATIONS.md))
-
-- **Integrated Financial Dashboard:** Protected `/dashboard` route with shared period/currency filters, financial KPIs, Recharts visualizations, payment/refund summaries, upcoming renewals, partial-failure recovery, and accessible exact-value alternatives (see [DASHBOARD_FRONTEND.md](docs/DASHBOARD_FRONTEND.md))
-- **Responsive Application Navigation:** Active desktop navigation, compact mobile menu, dashboard landing after authentication, and preserved public homepage behavior
-- **Spending Analytics & SQL Reporting Engine:** Database-driven financial cash flow analytics, monthly trends with zero-activity period generation, category breakdowns, subscription-wise spending, top expensive subscription rankings, and streaming CSV export (see [SPENDING_ANALYTICS.md](docs/SPENDING_ANALYTICS.md) and [ANALYTICS_SQL_QUERIES.md](docs/ANALYTICS_SQL_QUERIES.md))
-- **DBMS Query Architecture:** CTE-driven double-counting prevention, conditional aggregation (`SUM(CASE ...)`), `generate_series` calendar matrix generation, window functions (`COUNT(*) OVER()`), and multi-table relational joins with zero ORM abstraction
-- **Payment Tracking & Billing Management (Stage 6):** Full manual payment recording, historical snapshot preservation, paginated & filtered audit listings, controlled payment corrections, and concurrency-safe refund tracking with row-level locks (see [PAYMENT_BILLING_MANAGEMENT.md](docs/PAYMENT_BILLING_MANAGEMENT.md))
-- **Billing Management & Projections:** Fixed-precision recurring monthly and yearly cost normalization (`P`, `P/3`, `P/12`) with strict currency separation; 30-day renewal schedule window with overdue alerts (without auto-inserting phantom payments)
-- **Subscription Management System (Stage 5):** Full CRUD, search, multi-field filtering, sorting, pagination, and lifecycle state management (see [SUBSCRIPTION_MANAGEMENT.md](docs/SUBSCRIPTION_MANAGEMENT.md))
-- **Catalog & Custom Services:** Seamless support for catalog-curated services (Netflix, Spotify, Notion, etc.) and arbitrary user-declared custom services without global catalog pollution (`chk_subscriptions_service_source`)
-- **Lifecycle & Status Transitions:** Tracking of `trial`, `active`, `paused`, and `cancelled` states with synchronized `cancelled_at` timestamps
-- **Deterministic Scheduling Rules:** Database constraints ensuring `next_renewal_date` and `trial_end_date` are mandatory when required and never precede `start_date`
-- **Soft Archival Policy:** Safe deactivation via `archived_at` timestamps preserving referential integrity for historical payments and allowing instant restoration
-- **Responsive React 19 UI:** Desktop tables, mobile cards, dashboard charts, KPI metrics, interactive forms, payment filters, refund modals, analytics tables, and accessible confirmation dialogs
-- **Multi-Tenant User Isolation:** Parameterized queries strictly bound to verified session user IDs; cross-user access attempts rejected with 404
-- **Dual-Token Authentication (Stage 4):** Bcrypt hashing, short-lived JWT access tokens, rotating PostgreSQL-backed refresh sessions with replay detection, HTTP-only cookies, and CSRF protection
-- **Automated Test Coverage:** Node/PostgreSQL integration suites plus Vitest and Testing Library coverage for authentication, subscriptions, payments, analytics, and dashboard behavior
-
-Not implemented: external email/SMS/push delivery, an external LLM provider, automatic provider actions, or production deployment (Stage 12).
+- **Security Hardening & Multi-Tenant Isolation:** Centralized defensive HTTP security headers (`nosniff`, `DENY`, HSTS, COOP), proxy trust configuration, server fingerprint removal (`x-powered-by`), token forgery rejection, session revocation replay detection, and non-disclosing 404 responses on foreign resource access (see [docs/FINAL_TESTING_REPORT.md](docs/FINAL_TESTING_REPORT.md)).
+- **Testing & E2E Automation:** 216 automated test points passing across verification suites, including 83 server unit & API tests, 50 client Vitest tests, 62 PostgreSQL integration tests, 13 security/isolation penetration tests, Playwright browser test specs (`e2e/`), and a deterministic 21-workflow full-stack user journey runner (`npm run test:journeys`).
+- **Continuous Integration (CI/CD):** Automated GitHub Actions pipeline configuration (`.github/workflows/ci.yml`) validating formatting, linting, migrations, unit tests, integration tests, E2E journeys, and production builds against a PostgreSQL 16 service container.
+- **Production Deployment Readiness:** Production multi-stage `Dockerfile` (non-root `node` user), `docker-compose.yml` multi-container orchestration, Render cloud blueprint (`render.yaml`), Vercel static configuration (`vercel.json`), and static SPA fallback routing (`_redirects`) (see [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)).
+- **AI-Powered Cost Optimization:** Versioned deterministic opportunity detector for exact duplicates, category concentration, price outliers, and trial expirations, with grounded natural language explanations (see [docs/AI_COST_OPTIMIZATION.md](docs/AI_COST_OPTIMIZATION.md)).
+- **Advanced PostgreSQL DBMS:** Stored calculation functions, bounded recommendation procedures, transactional audit triggers (`subscription_audit_events`), security-invoker views, and a measured covering partial index improving mean execution time by 21.6% (0.612 ms to 0.480 ms) and dropping buffer hits from 15 to 6 blocks on 50,000 rows (see [docs/DATABASE_PERFORMANCE_REPORT.md](docs/DATABASE_PERFORMANCE_REPORT.md)).
+- **Renewal Reminders & Worker:** User-local renewal/trial calendar windows, database-enforced alert deduplication, independent background polling worker daemon, and in-app Notification Center.
+- **Spending Analytics & SQL Reporting:** Multi-currency financial cash flow analysis, zero-activity interval trend generation, category breakdowns, and streaming CSV export with spreadsheet formula injection protection.
+- **Payment & Refund Ledger:** Immutable historical invoices, billing period tracking, and concurrency-safe refund balance recalculation with row-level locks.
+- **Subscription Management:** Full CRUD, search, filtering, pagination, catalog vs. custom service handling, and soft archival.
 
 ## Technology Stack
 
-| Layer | Implemented | Planned later |
-| --- | --- | --- |
-| Frontend | React 19, Vite 8, Tailwind CSS 4, React Router 7, Axios, Recharts, Notification Center, Vitest, Testing Library | AI recommendation views |
-| Backend | Node.js 22, Express 5, authenticated notification APIs, independent reminder worker, zod, raw `pg` | AI recommendation engine |
-| Database | PostgreSQL 18.6, raw parameterized SQL with `pg`, migrations `001`–`005`, functions, procedure, trigger, views, transactional concurrency, and measured indexing | Deployment operations and production monitoring |
-| Quality | npm workspaces, ESLint 9, Prettier, Node test runner, Vitest, Supertest, PostgreSQL integration tests | End-to-end browser testing |
+| Layer | Implemented & Verified Technologies |
+| :--- | :--- |
+| **Frontend** | React 19, Vite 8, Tailwind CSS 4, React Router 7, Axios, Recharts, Vitest, Testing Library |
+| **Backend** | Node.js 22 LTS, Express 5, Zod validation, bcrypt, jsonwebtoken, pg connection pool |
+| **Database** | PostgreSQL 18.6 / 16.x, raw parameterized SQL, migrations 001–005, stored functions & procedures, audit triggers, security-invoker views, covering partial index |
+| **Security** | Defensive HTTP headers (HSTS, CSP, X-Frame-Options, nosniff), HttpOnly refresh cookies, CSRF defenses, rate limiting, SQL parameterization, CSV sanitization |
+| **DevOps & QA**| Playwright Test, GitHub Actions CI, Docker, Docker Compose, Render Blueprint, Vercel, Prettier, ESLint |
 
-No ORM is used. Direct PostgreSQL and SQL are central DBMS objectives.
+No ORM is used. Direct PostgreSQL and relational algebra are central DBMS project objectives.
 
 ## Project Structure
 
@@ -212,18 +202,24 @@ See the [ER Diagram](docs/ER_DIAGRAM.md), [Schema Reference](docs/DATABASE_SCHEM
 
 ## Documentation
 
+### Core & Stage 12 Deliverables
+- [Final Comprehensive Project Report](docs/FINAL_PROJECT_REPORT.md)
+- [REST API Reference](docs/API_REFERENCE.md)
+- [User Guide & Application Manual](docs/USER_GUIDE.md)
+- [Production Deployment & Operations Guide](docs/DEPLOYMENT_GUIDE.md)
+- [Final Testing & QA Report](docs/FINAL_TESTING_REPORT.md)
+- [Project Presentation & Live Demo Script](docs/PROJECT_DEMO_SCRIPT.md)
+
+### Technical Specifications & DBMS Architecture
 - [Project Overview](docs/PROJECT_OVERVIEW.md)
 - [Functional and Non-Functional Requirements](docs/REQUIREMENTS.md)
 - [User Workflows](docs/USER_WORKFLOWS.md)
 - [High-Level System Architecture](docs/SYSTEM_ARCHITECTURE.md)
 - [Database Planning Record](docs/DATABASE_PLANNING.md)
-- [Database Schema](docs/DATABASE_SCHEMA.md)
-- [ER Diagram](docs/ER_DIAGRAM.md)
-- [Normalization](docs/NORMALIZATION.md)
+- [Database Schema Reference](docs/DATABASE_SCHEMA.md)
+- [Entity-Relationship Diagram](docs/ER_DIAGRAM.md)
+- [Normalization Analysis (3NF/BCNF)](docs/NORMALIZATION.md)
 - [PostgreSQL Setup on Windows](docs/DATABASE_SETUP.md)
-- [SQL Query Examples](docs/SQL_QUERY_EXAMPLES.md)
-- [Development Roadmap](docs/DEVELOPMENT_ROADMAP.md)
-- [Architecture Decisions](docs/ARCHITECTURE_DECISIONS.md)
 - [Advanced DBMS Implementation](docs/ADVANCED_DBMS.md)
 - [DBMS SQL Demonstrations](docs/DBMS_SQL_DEMONSTRATIONS.md)
 - [Database Performance Report](docs/DATABASE_PERFORMANCE_REPORT.md)
@@ -235,6 +231,8 @@ See the [ER Diagram](docs/ER_DIAGRAM.md), [Schema Reference](docs/DATABASE_SCHEM
 - [Dashboard Frontend & Integration](docs/DASHBOARD_FRONTEND.md)
 - [Renewal Reminders & Notifications](docs/RENEWAL_NOTIFICATIONS.md)
 - [AI-Powered Cost Optimization](docs/AI_COST_OPTIMIZATION.md)
+- [Development Roadmap](docs/DEVELOPMENT_ROADMAP.md)
+- [Architecture Decisions (ADRs 001–040)](docs/ARCHITECTURE_DECISIONS.md)
 - [General Local Setup](docs/LOCAL_SETUP.md)
 
 ## Roadmap
@@ -249,8 +247,8 @@ See the [ER Diagram](docs/ER_DIAGRAM.md), [Schema Reference](docs/DATABASE_SCHEM
 8. Frontend Dashboard & Integration — **complete**
 9. Renewal Reminders & Notifications — **complete**
 10. AI-Powered Cost Optimization — **complete**
-11. Advanced DBMS Implementation
-12. Testing, Deployment & Documentation
+11. Advanced DBMS Implementation & Optimization — **complete**
+12. Testing, Security, Deployment & Documentation — **complete**
 
 ## Current Boundaries
 

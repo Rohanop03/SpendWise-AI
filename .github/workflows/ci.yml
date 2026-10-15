@@ -1,0 +1,70 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  validate:
+    name: Lint, Test & Build
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: spendwise_test
+          POSTGRES_USER: spendwise_app
+          POSTGRES_PASSWORD: ci_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      TEST_DATABASE_URL: postgresql://spendwise_app:ci_test_password@localhost:5432/spendwise_test
+      DATABASE_URL: postgresql://spendwise_app:ci_test_password@localhost:5432/spendwise_test
+      JWT_ACCESS_SECRET: github-actions-ci-secret-with-at-least-32-chars
+      JWT_ACCESS_EXPIRES_IN: 15m
+      COOKIE_SECURE: false
+      CORS_ORIGIN: http://localhost:5173
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify code formatting
+        run: npm run format:check
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run server unit tests
+        run: npm test --workspace server
+
+      - name: Run database integration test suite
+        run: npm run test:db --workspace server
+
+      - name: Run client Vitest test suite
+        run: npm test --workspace client
+
+      - name: Run 21-workflow end-to-end user journeys
+        run: npm run test:journeys
+
+      - name: Build client production bundle
+        run: npm run build

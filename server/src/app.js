@@ -6,6 +6,7 @@ import config from './config/env.js';
 import database from './config/db.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFoundHandler } from './middleware/notFound.js';
+import { securityHeaders } from './middleware/securityHeaders.js';
 import { createApiRouter } from './routes/index.js';
 
 export function createApp({ appConfig = config, databaseClient = database } = {}) {
@@ -19,7 +20,12 @@ export function createApp({ appConfig = config, databaseClient = database } = {}
 
   const app = express();
 
+  if (appConfig.trustProxy !== undefined && appConfig.trustProxy !== false) {
+    app.set('trust proxy', appConfig.trustProxy);
+  }
+
   app.disable('x-powered-by');
+  app.use(securityHeaders(appConfig));
   app.use(
     cors({
       credentials: true,

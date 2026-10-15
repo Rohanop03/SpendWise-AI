@@ -111,6 +111,27 @@ function parseJwtExpiration(value) {
   return expiration;
 }
 
+function parseTrustProxy(value) {
+  if (value === undefined || value === '') {
+    return false;
+  }
+
+  if (value === 'true') {
+    return 1;
+  }
+
+  if (value === 'false') {
+    return false;
+  }
+
+  const numeric = Number(value);
+  if (Number.isInteger(numeric) && numeric >= 0) {
+    return numeric;
+  }
+
+  return value;
+}
+
 export function loadConfig(environment = process.env) {
   return Object.freeze({
     allowDemoSeed: parseBoolean(environment.ALLOW_DEMO_SEED, 'ALLOW_DEMO_SEED'),
@@ -126,6 +147,7 @@ export function loadConfig(environment = process.env) {
     }),
     cookieSecure: parseBoolean(environment.COOKIE_SECURE, 'COOKIE_SECURE'),
     corsOrigin: parseCorsOrigin(environment.CORS_ORIGIN),
+    databaseSsl: parseBoolean(environment.DATABASE_SSL, 'DATABASE_SSL', false),
     databaseUrl: parseDatabaseUrl(environment.DATABASE_URL, 'DATABASE_URL'),
     jwtAccessExpiresIn: parseJwtExpiration(environment.JWT_ACCESS_EXPIRES_IN),
     jwtAccessSecret: parseJwtSecret(environment.JWT_ACCESS_SECRET),
@@ -147,6 +169,7 @@ export function loadConfig(environment = process.env) {
       { defaultValue: 7, maximum: 30, minimum: 1 },
     ),
     testDatabaseUrl: parseDatabaseUrl(environment.TEST_DATABASE_URL, 'TEST_DATABASE_URL'),
+    trustProxy: parseTrustProxy(environment.TRUST_PROXY),
   });
 }
 

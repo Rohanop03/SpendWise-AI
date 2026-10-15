@@ -370,3 +370,34 @@ The database health endpoint intentionally uses `database: "unavailable"` withou
 
 **Consequences:** Public and authentication routes do not eagerly load the chart chunk. Charts remain interactive, while exact financial values and accessibility do not depend on SVG interpretation.
 
+## ADR-038: Security Hardening, Defensive HTTP Headers, and Trust Proxy Architecture
+
+**Status:** Accepted in Stage 12
+
+**Decision:** Mount defensive HTTP security headers (`nosniff`, `DENY`, `strict-origin-when-cross-origin`, `COOP`, and production HSTS) directly via centralized middleware, suppress server fingerprinting (`x-powered-by`), support configurable reverse proxy trust (`TRUST_PROXY`), and enforce non-disclosing `404 NOT_FOUND` responses for cross-tenant resource probes.
+
+**Rationale:** Modern web applications face automated scanning, clickjacking, MIME-type sniffing, and tenant enumeration. Setting defensive headers centrally protects client browsing contexts, while a uniform 404 policy prevents malicious users from determining whether a subscription, payment, or recommendation ID belongs to another tenant.
+
+**Consequences:** Browser security headers are emitted on all HTTP responses, production HTTPS environments enforce transport security, rate limiters extract real client IPs behind proxies like Cloudflare and Render, and resource existence is protected against enumeration attacks.
+
+## ADR-039: Dual Verification Strategy: Browser E2E Automation and Deterministic API Journeys
+
+**Status:** Accepted in Stage 12
+
+**Decision:** Implement a dual-layer end-to-end verification strategy combining Playwright browser automation (`e2e/`) with an automated 21-workflow deterministic full-stack journey runner (`server/scripts/verifyUserJourneys.js`).
+
+**Rationale:** Browser automation tests user-visible DOM interactions, client-side routing, and responsive rendering, but headless browser binaries may be restricted in lightweight CI containers or local minimal developer workstations. A complementary deterministic journey runner executes all 21 key full-stack workflows directly against live PostgreSQL and Express instances, guaranteeing complete end-to-end validation under any execution environment.
+
+**Consequences:** Critical user workflows are tested both visually in Chromium and deterministically at the protocol/database layer. CI pipelines can run both suites reliably, and developers can verify full-stack health in seconds.
+
+## ADR-040: Production Containerization and Cloud-Native Infrastructure as Code
+
+**Status:** Accepted in Stage 12
+
+**Decision:** Provide cloud-agnostic containerization (`Dockerfile`, `docker-compose.yml`) running Node.js 22 LTS under an unprivileged `node` user with healthcheck endpoints, alongside declarative infrastructure-as-code blueprints for Render (`render.yaml`) and Vercel (`vercel.json`), plus static SPA fallback rewrite rules (`_redirects`).
+
+**Rationale:** Supporting diverse deployment environments (self-hosted VPS, Docker Compose, PaaS, and managed cloud) without code modification requires standardizing environment variable contracts, database SSL configuration (`DATABASE_SSL`), and static SPA client routing rewrites.
+
+**Consequences:** The application is immediately deployable across Docker, Render, Vercel, Supabase, Neon, and traditional Linux servers. Infrastructure is documented declaratively in version control.
+
+

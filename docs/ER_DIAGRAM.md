@@ -1,6 +1,6 @@
 # SpendWise AI Entity-Relationship Diagram
 
-This diagram represents migrations `001_initial_schema.sql` through `003_notification_target_dates.sql`. Crow's-foot markers show cardinality; `o` marks an optional relationship. `schema_migrations` is an operational table used by the migration runner and has no domain relationships.
+This diagram represents migrations `001_initial_schema.sql` through `005_advanced_dbms.sql`. Crow's-foot markers show cardinality; `o` marks an optional relationship. `schema_migrations` is an operational table used by the migration runner and has no domain relationships.
 
 ```mermaid
 erDiagram
@@ -16,6 +16,8 @@ erDiagram
   USERS ||--o{ RECOMMENDATIONS : receives
   RECOMMENDATIONS ||--o{ RECOMMENDATION_SUBSCRIPTIONS : contains
   SUBSCRIPTIONS ||--o{ RECOMMENDATION_SUBSCRIPTIONS : supports
+  SUBSCRIPTIONS ||--o{ SUBSCRIPTION_AUDIT_EVENTS : audited_by
+  USERS ||--o{ SUBSCRIPTION_AUDIT_EVENTS : owns
 
   USERS {
     bigint id PK
@@ -112,6 +114,17 @@ erDiagram
     varchar relationship_role
   }
 
+  SUBSCRIPTION_AUDIT_EVENTS {
+    bigint id PK
+    bigint subscription_id FK
+    bigint user_id FK
+    varchar change_type
+    text_array changed_fields
+    jsonb old_values
+    jsonb new_values
+    timestamptz changed_at
+  }
+
   SCHEMA_MIGRATIONS {
     varchar migration_id PK
     varchar checksum
@@ -128,3 +141,4 @@ erDiagram
 - A notification may omit a subscription only for a system notification. Its composite foreign key ensures a referenced subscription belongs to the same user.
 - A recommendation can involve zero or many subscriptions through `recommendation_subscriptions`. Composite foreign keys prevent cross-user links.
 - The application archives subscriptions with `archived_at`; it does not physically delete them during ordinary use.
+- A subscription audit event references the same `(user_id, subscription_id)` owner pair and records only selected term changes.

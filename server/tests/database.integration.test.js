@@ -101,6 +101,7 @@ if (!config.testDatabaseUrl) {
         '002_auth_sessions',
         '003_notification_target_dates',
         '004_ai_cost_optimization',
+        '005_advanced_dbms',
       ]);
     });
 
@@ -145,6 +146,7 @@ if (!config.testDatabaseUrl) {
         'refunds',
         'schema_migrations',
         'services',
+        'subscription_audit_events',
         'subscriptions',
         'user_preferences',
         'users',
@@ -419,6 +421,7 @@ if (!config.testDatabaseUrl) {
         '002_auth_sessions',
         '003_notification_target_dates',
         '004_ai_cost_optimization',
+        '005_advanced_dbms',
       ]);
 
       const initialTracking = await database.query(
@@ -448,6 +451,10 @@ if (!config.testDatabaseUrl) {
         await copyFile(
           path.join(defaultMigrationsDirectory, '004_ai_cost_optimization.sql'),
           path.join(temporaryDirectory, '004_ai_cost_optimization.sql'),
+        );
+        await copyFile(
+          path.join(defaultMigrationsDirectory, '005_advanced_dbms.sql'),
+          path.join(temporaryDirectory, '005_advanced_dbms.sql'),
         );
         await writeFile(
           path.join(temporaryDirectory, '900_valid_probe.sql'),

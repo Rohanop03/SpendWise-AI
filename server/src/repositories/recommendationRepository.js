@@ -162,10 +162,8 @@ export function createRecommendationRepository(database) {
         }
       }
       await transaction.query(
-        `UPDATE recommendations SET status = 'inactive', resolved_at = $3, updated_at = CURRENT_TIMESTAMP
-         WHERE user_id = $1 AND rule_version = $2 AND status = 'active'
-           AND NOT (recommendation_key = ANY($4::varchar[]))`,
-        [userId, 'stage10-v1', evaluatedAt, activeKeys],
+        'CALL spendwise_retire_stale_recommendations($1, $2, $3::varchar[], $4, $5)',
+        [userId, 'stage10-v1', activeKeys, evaluatedAt, 0],
       );
     },
 

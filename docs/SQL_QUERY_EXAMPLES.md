@@ -1,5 +1,7 @@
 # SQL Query Examples
 
+For Stage 11 joins, subqueries, aggregates, CTEs, window functions, routines, triggers, views, transactions, savepoints, locks, indexes, and execution plans, see [DBMS SQL Demonstrations](DBMS_SQL_DEMONSTRATIONS.md).
+
 These examples use the implemented PostgreSQL schema. `$1`, `$2`, and similar markers are `pg` parameters; values must be passed separately rather than concatenated into SQL. Monetary results are grouped by currency because SpendWise AI has no exchange-rate source.
 
 ## 1. Basic `SELECT`

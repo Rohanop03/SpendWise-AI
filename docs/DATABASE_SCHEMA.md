@@ -1,6 +1,6 @@
 # Database Schema Reference
 
-The physical schema is defined by [`server/db/migrations/001_initial_schema.sql`](../server/db/migrations/001_initial_schema.sql). It uses PostgreSQL-generated `BIGINT` identity keys, fixed-precision `NUMERIC(12,2)` money, `DATE` for billing calendar dates, and `TIMESTAMPTZ` for events. All runtime values are supplied through parameterized queries.
+The physical schema is defined by ordered migrations [`001_initial_schema.sql`](../server/db/migrations/001_initial_schema.sql) through [`005_advanced_dbms.sql`](../server/db/migrations/005_advanced_dbms.sql). It uses PostgreSQL-generated `BIGINT` identity keys, fixed-precision `NUMERIC(12,2)` money, `DATE` for billing calendar dates, and `TIMESTAMPTZ` for events. All runtime values are supplied through parameterized queries.
 
 ## `users`
 
@@ -208,6 +208,18 @@ Deleting a recommendation cascades only its associative rows. Deleting a referen
 
 Created by the migration runner before domain migrations. `migration_id VARCHAR(255)` is the primary key, `checksum VARCHAR(64)` detects changed applied files, and `applied_at TIMESTAMPTZ` records application time. It is intentionally absent from migration SQL so a fresh runner can bootstrap tracking.
 
+## `subscription_audit_events`
+
+Stage 11 records only meaningful changes to subscription status, price, billing cycle, and next renewal date. Each row has an identity primary key, the ownership-aware `(user_id, subscription_id)` foreign key, a nonempty changed-field array, JSONB old/new snapshots, and a timestamp. Both owner/time and subscription/time indexes support internal audit review. Physical subscription deletion is restricted; ordinary removal remains soft archival.
+
+## Stage 11 routines, views, trigger, and index
+
+- Functions: `spendwise_monthly_equivalent` and `spendwise_user_financial_summary`.
+- Procedure: `spendwise_retire_stale_recommendations`.
+- Trigger: `trg_subscriptions_audit_terms` using `spendwise_audit_subscription_changes`.
+- Views: `active_subscription_commitments` and `completed_payment_financials`, both security-invoker.
+- Index: partial covering `idx_payments_completed_subscription_covering` on completed payments by subscription/date/currency, including ID and amount.
+
 ## Referential-action policy
 
 - Financial history and user-owned domain rows use `RESTRICT`; application workflows archive instead of physically deleting subscriptions.
@@ -216,4 +228,4 @@ Created by the migration runner before domain migrations. `migration_id VARCHAR(
 - Recommendation link rows cascade with a removed recommendation; the recommendation itself does not own subscriptions.
 - Account closure and legally required data erasure need an explicit, audited Stage 4+ workflow. Foreign keys do not substitute for API authorization.
 
-No row-level security is enabled in Stage 3. Future repositories must derive the owner from authenticated identity and include `user_id` in every user-owned query. Composite foreign keys reinforce internal ownership consistency but cannot authenticate callers.
+No row-level security is enabled. Repositories derive the owner from authenticated identity and include `user_id` in every user-owned query. Stage 11 retained this model because the shared pool does not yet propagate safe transaction-local identities; composite foreign keys reinforce consistency but cannot authenticate callers.

@@ -56,6 +56,7 @@ if (!config.testDatabaseUrl) {
         '002_auth_sessions',
         '003_notification_target_dates',
         '004_ai_cost_optimization',
+        '005_advanced_dbms',
       ]);
     });
 

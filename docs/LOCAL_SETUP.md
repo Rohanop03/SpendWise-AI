@@ -1,6 +1,6 @@
 # Local Setup Guide
 
-This guide runs the Stage 3 SpendWise AI application on Windows with Visual Studio Code and PowerShell. PostgreSQL is optional for the basic frontend and API health check, but required for migrations, seeds, database tests, and successful database health.
+This guide runs the Stage 11 SpendWise AI application on Windows with Visual Studio Code and PowerShell. PostgreSQL is optional for the basic frontend and API health check, but required for migrations, seeds, database tests, advanced demonstrations, benchmarks, and successful database health.
 
 ## 1. Required Software
 
@@ -181,6 +181,9 @@ Run these from the repository root:
 npm run lint
 npm run test
 npm run test:db
+npm run db:advanced:verify
+npm run db:demo
+npm run db:benchmark
 npm run format:check
 npm run build
 ```
@@ -188,6 +191,9 @@ npm run build
 - `lint` checks frontend, backend, tests, and shared JavaScript configuration.
 - `test` runs backend HTTP/database unit tests and skips the integration suite when `TEST_DATABASE_URL` is absent.
 - `test:db` runs the real PostgreSQL suite against the guarded `spendwise_test` database.
+- `db:advanced:verify` verifies the Stage 11 functions, procedure, trigger, views, audit table, and index.
+- `db:demo` uses isolated test rows to demonstrate ACID, isolation levels, serialization failure, and deadlock detection.
+- `db:benchmark` creates and cleans a 50,000-row test fixture and compares actual execution plans.
 - `format:check` checks implementation and configuration formatting while preserving manually formatted project documentation.
 - `build` creates a production frontend bundle in `client/dist/`.
 
@@ -239,7 +245,7 @@ Recharts is installed in the client workspace. If dependencies or the lockfile a
 
 ## 13. Current Stage Boundaries
 
-Stages 1–10 provide account authentication, subscription management, payment/refund records, billing projections, SQL analytics, the dashboard, database-backed in-app reminders, and deterministic cost recommendations. External notification delivery, an external LLM provider, bank/payment-provider integrations, and production deployment remain outside the current stage.
+Stages 1–11 provide account authentication, subscription management, payment/refund records, billing projections, SQL analytics, the dashboard, database-backed in-app reminders, deterministic cost recommendations, and advanced PostgreSQL demonstrations/optimization. External notification delivery, an external LLM provider, bank/payment-provider integrations, and production deployment remain outside the current stage.
 
 ## 14. Reminder Worker
 

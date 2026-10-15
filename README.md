@@ -2,15 +2,17 @@
 
 > Smart Subscription Tracking & AI-Powered Cost Optimization
 
-SpendWise AI is a full-stack subscription management and cost-optimization project. Stage 10 adds versioned deterministic recommendations, exact hypothetical savings, lifecycle-safe PostgreSQL persistence, a protected Recommendation Center, and dashboard optimization summaries.
+SpendWise AI is a full-stack subscription management and cost-optimization project. Stage 11 adds PostgreSQL functions, a bounded procedure, transactional auditing, secure views, isolation/deadlock demonstrations, and measured query optimization.
 
 The product is built on a PostgreSQL relational database with parameterized node-postgres (`pg`) queries, short-lived JWT authentication, strict user isolation, check constraints, row-level locks for financial integrity, and a responsive React 19 UI.
 
 ## Current Status
 
-**Stage 10 of 12 — AI-Powered Cost Optimization**
+**Stage 11 of 12 — Advanced DBMS Implementation & Database Optimization**
 
 Implemented:
+
+- **Advanced PostgreSQL:** Exact cost and financial-summary functions, stale-recommendation procedure, transactional subscription audit trigger, security-invoker financial views, deterministic isolation/deadlock demos, and a measured partial covering index (see [ADVANCED_DBMS.md](docs/ADVANCED_DBMS.md))
 
 - **Renewal Reminders & Notifications:** User-local renewal/trial windows, PostgreSQL-enforced event idempotency, one-shot and recurring worker commands, protected list/read APIs, unread bell, and Notification Center (see [RENEWAL_NOTIFICATIONS.md](docs/RENEWAL_NOTIFICATIONS.md))
 
@@ -30,7 +32,7 @@ Implemented:
 - **Dual-Token Authentication (Stage 4):** Bcrypt hashing, short-lived JWT access tokens, rotating PostgreSQL-backed refresh sessions with replay detection, HTTP-only cookies, and CSRF protection
 - **Automated Test Coverage:** Node/PostgreSQL integration suites plus Vitest and Testing Library coverage for authentication, subscriptions, payments, analytics, and dashboard behavior
 
-Not implemented: external email/SMS/push delivery, an external LLM provider, automatic provider actions, advanced DBMS objects (Stage 11), or production deployment (Stage 12).
+Not implemented: external email/SMS/push delivery, an external LLM provider, automatic provider actions, or production deployment (Stage 12).
 
 ## Technology Stack
 
@@ -38,7 +40,7 @@ Not implemented: external email/SMS/push delivery, an external LLM provider, aut
 | --- | --- | --- |
 | Frontend | React 19, Vite 8, Tailwind CSS 4, React Router 7, Axios, Recharts, Notification Center, Vitest, Testing Library | AI recommendation views |
 | Backend | Node.js 22, Express 5, authenticated notification APIs, independent reminder worker, zod, raw `pg` | AI recommendation engine |
-| Database | PostgreSQL 18.6, raw parameterized SQL with `pg`, migrations `001`–`003`, atomic notification idempotency | Advanced views, triggers, and measured DBMS optimization |
+| Database | PostgreSQL 18.6, raw parameterized SQL with `pg`, migrations `001`–`005`, functions, procedure, trigger, views, transactional concurrency, and measured indexing | Deployment operations and production monitoring |
 | Quality | npm workspaces, ESLint 9, Prettier, Node test runner, Vitest, Supertest, PostgreSQL integration tests | End-to-end browser testing |
 
 No ORM is used. Direct PostgreSQL and SQL are central DBMS objectives.
@@ -107,6 +109,9 @@ Open the frontend at `http://localhost:5173` and backend health at `http://local
 | `npm run db:migrate` | Apply pending transactional SQL migrations |
 | `npm run db:seed` | Idempotently seed shared catalogs |
 | `npm run db:seed:demo` | Seed guarded fictional development fixtures |
+| `npm run db:advanced:verify` | Verify Stage 11 objects in `spendwise_test` |
+| `npm run db:benchmark` | Benchmark the covering index with self-cleaning test fixtures |
+| `npm run db:demo` | Demonstrate ACID, isolation, serialization, and deadlocks safely |
 | `npm run reminders:run-once` | Run one safe reminder eligibility scan |
 | `npm run reminders:worker` | Start the independent recurring reminder worker |
 | `npm run test:db` | Rebuild and test only the configured `spendwise_test` database |
@@ -219,6 +224,10 @@ See the [ER Diagram](docs/ER_DIAGRAM.md), [Schema Reference](docs/DATABASE_SCHEM
 - [SQL Query Examples](docs/SQL_QUERY_EXAMPLES.md)
 - [Development Roadmap](docs/DEVELOPMENT_ROADMAP.md)
 - [Architecture Decisions](docs/ARCHITECTURE_DECISIONS.md)
+- [Advanced DBMS Implementation](docs/ADVANCED_DBMS.md)
+- [DBMS SQL Demonstrations](docs/DBMS_SQL_DEMONSTRATIONS.md)
+- [Database Performance Report](docs/DATABASE_PERFORMANCE_REPORT.md)
+- [DBMS Viva Preparation](docs/DBMS_VIVA_PREPARATION.md)
 - [Subscription Management System](docs/SUBSCRIPTION_MANAGEMENT.md)
 - [Payment Tracking & Billing Management](docs/PAYMENT_BILLING_MANAGEMENT.md)
 - [Spending Analytics Engine](docs/SPENDING_ANALYTICS.md)

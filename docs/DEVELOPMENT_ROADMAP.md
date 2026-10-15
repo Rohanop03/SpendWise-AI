@@ -267,6 +267,8 @@
 
 ### Stage 11 — Advanced DBMS Implementation
 
+**Status:** Complete
+
 **Objective:** complete and demonstrate justified advanced database capabilities and measured query optimization.
 
 **Major deliverables:**
@@ -287,6 +289,8 @@
 - Transaction demonstrations prove rollback and consistency behavior.
 - Query optimization claims include repeatable plans/measurements on documented data and environment.
 - Redundant or ineffective indexes and artificial database features are not retained.
+
+**Delivered:** Migration `005_advanced_dbms.sql`, reusable calculation functions, a bounded recommendation procedure, subscription-term audit trigger/table, two security-invoker views, transaction/isolation/deadlock demonstrations, a guarded verification command, and a measured 50,000-row covering-index benchmark. See `ADVANCED_DBMS.md` and `DATABASE_PERFORMANCE_REPORT.md`.
 
 ### Stage 12 — Testing, Deployment & Documentation
 

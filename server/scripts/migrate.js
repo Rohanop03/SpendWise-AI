@@ -14,7 +14,8 @@ try {
     console.info(`Already applied: ${result.skipped.join(', ')}`);
   }
 } catch (error) {
-  console.error(`Migration failed: ${error.message}`);
+  const details = [error.code, error.message || error.name].filter(Boolean).join(': ');
+  console.error(`Migration failed: ${details || 'unknown database error'}`);
   process.exitCode = 1;
 } finally {
   await database.close();

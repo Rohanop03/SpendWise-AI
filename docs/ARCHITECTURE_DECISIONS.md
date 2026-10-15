@@ -301,9 +301,33 @@ The database health endpoint intentionally uses `database: "unavailable"` withou
 
 **Consequences:** Overdue dates create no new reminder, historical reminders remain immutable, changed target dates may create a new event, and worker deployment is a separate process. In-app delivery does not imply payment or external-provider action.
 
+## ADR-035: Invoker-Security Database Objects and Bounded Auditing
+
+**Status:** Accepted in Stage 11
+
+**Decision:** Add exact immutable cost normalization, an ownership-filtered financial summary, a transaction-neutral recommendation maintenance procedure, a narrowly scoped subscription-terms audit trigger, and two `security_invoker` views. Revoke PUBLIC routine execution. Keep application ownership predicates mandatory.
+
+**Consequences:** Shared calculations and audit behavior are consistent and transactionally tested without exposing credentials or broad privileged routines. Audit rows restrict physical subscription deletion, matching the existing soft-archive policy.
+
+## ADR-036: Defer RLS Until Pool Identity Propagation Exists
+
+**Status:** Accepted in Stage 11
+
+**Decision:** Do not enable RLS on production tables while pooled connections authenticate as one role and do not set a trusted transaction-local user identity. Continue parameterized ownership predicates and composite ownership foreign keys.
+
+**Consequences:** The verified authorization model remains stable. RLS can be added as defense in depth only with transaction-scoped identity setup/reset and adversarial pool-reuse tests.
+
+## ADR-037: Evidence-Based Partial Covering Index
+
+**Status:** Accepted in Stage 11
+
+**Decision:** Add `idx_payments_completed_subscription_covering` only after comparing the same 50,000-row test workload before and after. Keep benchmark fixtures isolated to `spendwise_test` and report warm-cache samples honestly.
+
+**Consequences:** The representative completed-payment aggregation changed from Index Scan to Index Only Scan and its measured mean fell from 0.612 ms to 0.480 ms, at the cost of maintaining one additional partial index.
+
 ## Deferred Decisions
 
-- Materialized views, database triggers, stored procedures, and row-level security: Stage 11
+- Materialized reporting and row-level security identity propagation: reconsider after production workload and deployment design
 - Production hosting, TLS termination, monitoring, backups, and recovery: Stage 12
 
 ## ADR-032: Deterministic Recommendations with Optional Explanation-Only AI

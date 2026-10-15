@@ -55,6 +55,7 @@ The service's default category is only a catalog suggestion. `subscriptions.cate
 | `notifications` | `id → recipient, related subscription, content, state`; `(user_id, deduplication_key) → id` |
 | `recommendations` | `id → owner, type, explanation, evidence, savings, lifecycle`; `(user_id,id)` is an ownership-aware candidate key |
 | `recommendation_subscriptions` | `(recommendation_id,subscription_id) → user_id, relationship_role` |
+| `subscription_audit_events` | `id → subscription_id, user_id, change_type, changed_fields, old_values, new_values, changed_at` |
 | `schema_migrations` | `migration_id → checksum, applied_at` |
 
 ## Historical snapshots and calculated values
@@ -74,4 +75,10 @@ Recommendation evidence is a versioned explanation snapshot, not an authoritativ
 - One logical notification occurrence cannot be inserted twice for the same user.
 - A notification or recommendation link cannot point at another user's subscription.
 
-The result satisfies 3NF for operational relational facts while retaining two documented, controlled exceptions: the historical payment snapshot required for correctness and JSONB recommendation evidence required for future explanation reproducibility.
+## BCNF, 4NF, and 5NF assessment
+
+Most entity relations satisfy BCNF because every meaningful determinant is a candidate key: identity IDs, normalized catalog names, normalized email, or explicit user-scoped identity keys. `recommendation_subscriptions` has only facts about its complete composite key. Repeated `user_id` in ownership-aware relationships is constrained by composite foreign keys rather than an unconstrained descriptive duplication.
+
+Independent multi-valued facts are separated: payments, refunds, sessions, notifications, recommendation links, and audit events are rows in their own relations. This avoids the cross-product anomalies that 4NF addresses. The many-to-many recommendation/subscription relationship is represented by its irreducible join table; there is no known nontrivial join dependency requiring further 5NF decomposition. Claims beyond the documented dependencies would require new business rules.
+
+The result satisfies 3NF for operational relational facts and, relation by relation, generally BCNF/4NF/5NF under current rules. Two deliberate snapshots remain: historical payment amount/currency required for correctness and JSONB recommendation/audit evidence required for reproducibility. They describe events at their own keys rather than current catalog facts.

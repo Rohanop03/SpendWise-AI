@@ -70,6 +70,7 @@ if (!config.testDatabaseUrl) {
 
     beforeEach(async () => {
       await database.withClient(async (client) => {
+        await client.query('DELETE FROM subscription_audit_events');
         await client.query('DELETE FROM refunds');
         await client.query('DELETE FROM payments');
         await client.query('DELETE FROM subscriptions');

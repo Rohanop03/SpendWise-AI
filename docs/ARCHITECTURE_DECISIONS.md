@@ -293,9 +293,28 @@ The database health endpoint intentionally uses `database: "unavailable"` withou
 
 ## Deferred Decisions
 
-- Interactive dashboard charts, visual widgets, and navigation integration: Stage 8
 - Automated renewal reminder notifications: Stage 9
 - AI-powered optimization rules and recommendation engine: Stage 10
 - Materialized views, database triggers, stored procedures, and row-level security: Stage 11
 - Production hosting, TLS termination, monitoring, backups, and recovery: Stage 12
+
+## ADR-029: Coordinated Dashboard Fetching with Independent Widget State
+
+**Status:** Accepted in Stage 8
+
+**Decision:** Fetch dashboard aggregates through one `useDashboardData` boundary using the existing authenticated Axios client, `Promise.allSettled`, request cancellation, and request-generation checks. Maintain success/error/loading state per widget instead of treating the dashboard as one indivisible request.
+
+**Rationale:** The dashboard consumes independent Stage 6 and Stage 7 endpoints. A failure in a noncritical chart must not hide valid financial summaries or renewals, while rapid filter changes must not allow stale responses to overwrite the current selection.
+
+**Consequences:** Successful widgets remain useful during partial failure, retry is centralized, duplicate sibling requests are avoided, and no heavyweight data-fetching dependency is introduced.
+
+## ADR-030: Recharts at a Lazy-Loaded Visualization Boundary
+
+**Status:** Accepted in Stage 8
+
+**Decision:** Use Recharts for dashboard charts and lazy-load the `/dashboard` route. Preserve exact decimal strings for text/tooltips and convert only safe finite values at the plotting boundary. Every chart has a textual or tabular alternative.
+
+**Rationale:** Recharts fits the existing React stack and provides responsive, composable SVG charts, but chart libraries add bundle cost and JavaScript plotting cannot represent arbitrary PostgreSQL `NUMERIC` precision exactly.
+
+**Consequences:** Public and authentication routes do not eagerly load the chart chunk. Charts remain interactive, while exact financial values and accessibility do not depend on SVG interpretation.
 

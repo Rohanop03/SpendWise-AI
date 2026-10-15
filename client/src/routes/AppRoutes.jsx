@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router-dom';
 
 import ProtectedRoute from '../auth/ProtectedRoute.jsx';
@@ -19,6 +20,22 @@ import SettingsPage from '../pages/SettingsPage.jsx';
 import SubscriptionDetailsPage from '../pages/SubscriptionDetailsPage.jsx';
 import SubscriptionsPage from '../pages/SubscriptionsPage.jsx';
 
+const DashboardPage = lazy(() => import('../pages/DashboardPage.jsx'));
+
+function DashboardRoute() {
+  return (
+    <Suspense
+      fallback={
+        <p className="mx-auto max-w-7xl px-5 py-24 text-center text-slate-300" role="status">
+          Loading dashboard…
+        </p>
+      }
+    >
+      <DashboardPage />
+    </Suspense>
+  );
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -29,6 +46,7 @@ function AppRoutes() {
           <Route element={<RegisterPage />} path="register" />
         </Route>
         <Route element={<ProtectedRoute />}>
+          <Route element={<DashboardRoute />} path="dashboard" />
           <Route element={<AccountPage />} path="account" />
           <Route element={<SettingsPage />} path="settings" />
           <Route element={<SubscriptionsPage />} path="subscriptions" />

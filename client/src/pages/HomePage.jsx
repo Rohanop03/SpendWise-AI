@@ -1,15 +1,15 @@
 import ApiStatus from '../components/ApiStatus.jsx';
 
-const plannedCapabilities = [
+const productCapabilities = [
   {
     description:
       'Keep recurring services, billing cycles, and renewal dates organized in one place.',
-    eyebrow: 'Planned · Stage 5',
+    eyebrow: 'Available now',
     title: 'Subscription tracking',
   },
   {
     description: 'Turn recorded subscription and payment data into clear, currency-aware insights.',
-    eyebrow: 'Planned · Stages 6–8',
+    eyebrow: 'Available now',
     title: 'Spending clarity',
   },
   {
@@ -55,16 +55,16 @@ function HomePage() {
 
           <aside className="relative rounded-[2rem] border border-white/10 bg-white/[0.055] p-7 shadow-2xl shadow-black/30 backdrop-blur sm:p-9">
             <div className="absolute -right-6 -top-6 size-24 rounded-full bg-emerald-300/15 blur-2xl" />
-            <p className="text-sm font-semibold text-emerald-300">Secure accounts implemented</p>
+            <p className="text-sm font-semibold text-emerald-300">Financial dashboard available</p>
             <h2 className="mt-3 text-2xl font-bold text-white">
-              Stage 4 protects the user experience from the first request.
+              Stage 8 turns real subscription records into clear financial insight.
             </h2>
             <div className="mt-7 space-y-5">
               {[
-                'Registration and bcrypt password protection',
-                'Short-lived JWT access tokens',
-                'Rotating PostgreSQL-backed refresh sessions',
-                'Protected profile and preference management',
+                'Currency-isolated spending and refund summaries',
+                'Interactive monthly and category visualizations',
+                'Current commitments and upcoming renewals',
+                'Detailed analytics tables and CSV reporting',
               ].map((item, index) => (
                 <div className="flex gap-4" key={item}>
                   <span className="grid size-8 shrink-0 place-items-center rounded-full border border-emerald-300/30 bg-emerald-300/10 text-sm font-bold text-emerald-200">
@@ -75,7 +75,8 @@ function HomePage() {
               ))}
             </div>
             <p className="mt-8 border-t border-white/10 pt-6 text-sm leading-6 text-slate-400">
-              Subscription and financial workflows remain planned for their later roadmap stages.
+              Sign in to open your protected dashboard. Financial values come from your stored
+              records.
             </p>
           </aside>
         </div>
@@ -85,18 +86,19 @@ function HomePage() {
         <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:px-10 lg:py-24">
           <div className="max-w-3xl">
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-700">
-              Product roadmap
+              Product capabilities
             </p>
             <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
-              What the foundation is designed to support
+              Track what you pay and understand where it goes
             </h2>
             <p className="mt-5 text-lg leading-8 text-slate-600">
-              These product capabilities remain planned for later development stages.
+              Core tracking and financial analytics are available now; cost optimization remains a
+              future stage.
             </p>
           </div>
 
           <div className="mt-12 grid gap-5 md:grid-cols-3">
-            {plannedCapabilities.map((capability) => (
+            {productCapabilities.map((capability) => (
               <article
                 className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm"
                 key={capability.title}

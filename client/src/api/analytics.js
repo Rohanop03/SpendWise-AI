@@ -1,42 +1,42 @@
 import http from './http.js';
 
-export async function getAnalyticsOverview(params = {}) {
-  const response = await http.get('/analytics/overview', { params });
+export async function getAnalyticsOverview(params = {}, options = {}) {
+  const response = await http.get('/analytics/overview', { params, ...options });
   return response.data;
 }
 
-export async function getSpendingTrends(params = {}) {
-  const response = await http.get('/analytics/trends', { params });
+export async function getSpendingTrends(params = {}, options = {}) {
+  const response = await http.get('/analytics/trends', { params, ...options });
   return response.data;
 }
 
-export async function getCategoryAnalytics(params = {}) {
-  const response = await http.get('/analytics/categories', { params });
+export async function getCategoryAnalytics(params = {}, options = {}) {
+  const response = await http.get('/analytics/categories', { params, ...options });
   return response.data;
 }
 
-export async function getSubscriptionAnalytics(params = {}) {
-  const response = await http.get('/analytics/subscriptions', { params });
+export async function getSubscriptionAnalytics(params = {}, options = {}) {
+  const response = await http.get('/analytics/subscriptions', { params, ...options });
   return response.data;
 }
 
-export async function getTopSubscriptions(params = {}) {
-  const response = await http.get('/analytics/top-subscriptions', { params });
+export async function getTopSubscriptions(params = {}, options = {}) {
+  const response = await http.get('/analytics/top-subscriptions', { params, ...options });
   return response.data;
 }
 
-export async function getBillingCycleAnalytics(params = {}) {
-  const response = await http.get('/analytics/billing-cycles', { params });
+export async function getBillingCycleAnalytics(params = {}, options = {}) {
+  const response = await http.get('/analytics/billing-cycles', { params, ...options });
   return response.data;
 }
 
-export async function getPaymentStatusAnalytics(params = {}) {
-  const response = await http.get('/analytics/payment-status', { params });
+export async function getPaymentStatusAnalytics(params = {}, options = {}) {
+  const response = await http.get('/analytics/payment-status', { params, ...options });
   return response.data;
 }
 
-export async function getRefundAnalytics(params = {}) {
-  const response = await http.get('/analytics/refunds', { params });
+export async function getRefundAnalytics(params = {}, options = {}) {
+  const response = await http.get('/analytics/refunds', { params, ...options });
   return response.data;
 }
 

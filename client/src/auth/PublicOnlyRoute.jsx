@@ -13,7 +13,7 @@ function PublicOnlyRoute() {
     );
   }
 
-  return isAuthenticated ? <Navigate replace to="/account" /> : <Outlet />;
+  return isAuthenticated ? <Navigate replace to="/dashboard" /> : <Outlet />;
 }
 
 export default PublicOnlyRoute;

@@ -5,7 +5,7 @@ export async function getBillingOverview(params = {}) {
   return response.data;
 }
 
-export async function getUpcomingRenewals(params = {}) {
-  const response = await http.get('/billing/upcoming', { params });
+export async function getUpcomingRenewals(params = {}, options = {}) {
+  const response = await http.get('/billing/upcoming', { params, ...options });
   return response.data;
 }

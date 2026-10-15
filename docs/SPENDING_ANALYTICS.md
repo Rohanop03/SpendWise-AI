@@ -261,7 +261,7 @@ Stage 7 is backed by thorough integration and component test coverage:
 
 ---
 
-## 8. Known Limitations & Stage 8 Readiness
+## 8. Known Limitations & Stage 8 Integration
 
 - **Current Category Mapping:** Categories are associated with subscriptions rather than captured as an immutable snapshot on each individual payment row. If a subscription's category is changed, historical payments will be grouped under the new category. This design is documented and avoids redundant denormalization.
-- **Stage 8 Readiness:** The analytics REST endpoints return clean, structured JSON datasets (`overview`, `trends`, `categories`, `subscriptions`, `billingCycles`) directly consumable by Stage 8's interactive charting library (e.g., Recharts) and visual financial dashboard widgets.
+- **Stage 8 Integration:** The protected dashboard now consumes these structured datasets through a coordinated hook, renders Recharts visualizations, and preserves exact values through textual alternatives. See [DASHBOARD_FRONTEND.md](DASHBOARD_FRONTEND.md).

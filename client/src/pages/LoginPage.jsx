@@ -25,7 +25,7 @@ function LoginPage() {
 
     try {
       await login(form);
-      navigate(location.state?.from || '/account', { replace: true });
+      navigate(location.state?.from || '/dashboard', { replace: true });
     } catch (requestError) {
       setError(getApiErrorMessage(requestError));
     } finally {

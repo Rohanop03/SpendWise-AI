@@ -194,27 +194,28 @@
 - SQL features are documented through real report use cases. (Verified)
 - Date-of-event cash-flow net deficits are preserved and never clamped to zero. (Verified)
 
-### Stage 8 — Frontend Dashboard & Integration
+### Stage 8 — Frontend Dashboard & Integration — **complete**
 
 **Objective:** deliver a cohesive, responsive, and accessible interface for implemented account, subscription, payment, and analytics capabilities.
 
 **Major deliverables:**
 
-- Integrated dashboard and navigation
-- Recharts visualizations with accessible summaries/alternatives
-- Responsive subscription, payment, and analytics pages
-- Central API client and authenticated error handling
-- Loading, empty, validation, success, and failure states
-- Frontend component/integration tests and accessibility checks
+- Protected `/dashboard` route with authenticated default landing and active navigation
+- Recharts cash-flow, category, historical subscription, and billing-cycle visualizations
+- PostgreSQL-backed overview, payment-status, refund, and upcoming-renewal widgets
+- Shared URL-backed period/currency filters with request cancellation and stale-response protection
+- Currency-isolated rendering, signed negative cash flow, and current-vs-historical labels
+- Responsive mobile navigation, accessible chart alternatives, and partial-failure recovery
+- Frontend component/integration tests and production bundle verification
 
 **Dependencies:** stable APIs from Stages 4–7 and agreed API/error contracts.
 
 **Acceptance criteria:**
 
-- Core workflows function across representative mobile, tablet, and desktop widths.
-- Keyboard and focus behavior, labels, contrast, and error feedback pass the documented checks.
-- Charts agree with textual/tabular values returned by the API.
-- Session expiry and network failures have recoverable user experiences.
+- Core workflows function across representative mobile, tablet, and desktop widths. (Verified through responsive implementation and automated structure checks; manual browser results are reported separately.)
+- Keyboard and focus behavior, labels, contrast, and error feedback pass the documented checks. (Implemented and covered by component assertions.)
+- Charts agree with textual/tabular values returned by the API. (Verified by shared response fixtures and exact-value alternatives.)
+- Session expiry and network failures have recoverable user experiences. (Verified through existing authentication tests and partial-failure tests.)
 
 ### Stage 9 — Renewal Reminders & Notifications
 

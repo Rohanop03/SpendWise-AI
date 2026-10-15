@@ -1,43 +1,6 @@
 import { useState } from 'react';
 
-function formatDate(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function getDatePresetRange(preset) {
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth();
-
-  switch (preset) {
-    case 'this_month': {
-      const start = new Date(currentYear, currentMonth, 1);
-      const end = new Date(currentYear, currentMonth + 1, 0);
-      return { endDate: formatDate(end), startDate: formatDate(start) };
-    }
-    case 'last_month': {
-      const start = new Date(currentYear, currentMonth - 1, 1);
-      const end = new Date(currentYear, currentMonth, 0);
-      return { endDate: formatDate(end), startDate: formatDate(start) };
-    }
-    case 'last_3_months': {
-      const start = new Date(currentYear, currentMonth - 2, 1);
-      const end = new Date(currentYear, currentMonth + 1, 0);
-      return { endDate: formatDate(end), startDate: formatDate(start) };
-    }
-    case 'this_year': {
-      const start = new Date(currentYear, 0, 1);
-      const end = new Date(currentYear, 11, 31);
-      return { endDate: formatDate(end), startDate: formatDate(start) };
-    }
-    case 'all_time':
-    default:
-      return { endDate: '', startDate: '' };
-  }
-}
+import { DASHBOARD_PERIODS, getPresetRange } from '../../utils/dashboardFilters.js';
 
 function AnalyticsFilters({
   availableCurrencies = [],
@@ -53,7 +16,7 @@ function AnalyticsFilters({
   function handlePresetChange(preset) {
     setSelectedPreset(preset);
     if (preset !== 'custom') {
-      const range = getDatePresetRange(preset);
+      const range = getPresetRange(preset);
       onDateChange(range.startDate, range.endDate);
     }
   }
@@ -66,14 +29,7 @@ function AnalyticsFilters({
           <span className="mr-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
             Period:
           </span>
-          {[
-            { id: 'all_time', label: 'All Time' },
-            { id: 'this_month', label: 'This Month' },
-            { id: 'last_month', label: 'Last Month' },
-            { id: 'last_3_months', label: 'Last 3 Months' },
-            { id: 'this_year', label: 'This Year' },
-            { id: 'custom', label: 'Custom' },
-          ].map((preset) => (
+          {DASHBOARD_PERIODS.map((preset) => (
             <button
               key={preset.id}
               type="button"

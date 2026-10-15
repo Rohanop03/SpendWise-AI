@@ -53,6 +53,7 @@ describe('frontend authentication', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.restoreSession.mockRejectedValue(new Error('No session'));
+    mocks.getPreferences.mockResolvedValue({ preferences: { preferredCurrency: 'USD' } });
   });
 
   it('renders login and toggles password visibility', async () => {
@@ -94,7 +95,7 @@ describe('frontend authentication', () => {
     expect(screen.getByDisplayValue('test@example.invalid')).toBeDisabled();
   });
 
-  it('navigates to the account after successful login', async () => {
+  it('navigates to the dashboard after successful login', async () => {
     const user = userEvent.setup();
     mocks.loginAccount.mockResolvedValue({ accessToken: 'access-token', user: userFixture });
     renderApp('/login');
@@ -104,7 +105,12 @@ describe('frontend authentication', () => {
     await user.type(screen.getByLabelText('Password'), 'secure passphrase');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
-    expect(await screen.findByRole('heading', { name: 'Account profile' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByRole('link', { name: 'Dashboard' })[0]).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+    });
   });
 
   it('shows a safe login error message', async () => {

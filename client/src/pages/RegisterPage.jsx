@@ -39,7 +39,7 @@ function RegisterPage() {
         email: form.email,
         password: form.password,
       });
-      navigate('/account', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch (requestError) {
       setError(getApiErrorMessage(requestError));
     } finally {

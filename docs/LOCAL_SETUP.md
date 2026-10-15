@@ -229,6 +229,14 @@ The backend deliberately rejects invalid ports, origins, runtime names, and malf
 
 Run `npm install` from the repository root. Do not maintain separate `client` or `server` lockfiles.
 
-## 12. Stage 3 Boundaries
+## 12. Dashboard Verification
 
-The current application provides a landing page, routing foundation, API health endpoints, PostgreSQL schema/migrations/seeds, and database tests. It does not include account APIs, authentication, domain CRUD endpoints, analytics, scheduler execution, notification delivery, or recommendation generation.
+After signing in, open `http://localhost:5173/dashboard`. The dashboard defaults to the account's preferred currency and the last 12 months. Currency and period selections are reflected in the URL, so a filtered dashboard can be refreshed without losing its selection.
+
+If charts remain empty, confirm that the account owns subscriptions and that completed payments were explicitly recorded. Current recurring estimates can appear without payment history; historical spending cannot. The application intentionally does not fabricate transactions or convert currencies.
+
+Recharts is installed in the client workspace. If dependencies or the lockfile are stale, run `npm install` once from the repository root.
+
+## 13. Current Stage Boundaries
+
+Stages 1–8 provide account authentication, subscription management, payment/refund records, billing projections, SQL analytics, CSV reporting, and the integrated frontend dashboard. Scheduler execution, notification delivery, AI recommendations, bank/payment-provider integrations, and production deployment remain outside the current stage.

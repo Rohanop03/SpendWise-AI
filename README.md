@@ -2,16 +2,18 @@
 
 > Smart Subscription Tracking & AI-Powered Cost Optimization
 
-SpendWise AI is a full-stack subscription management and cost-optimization project. Stage 7 delivers the complete Spending Analytics & SQL Reporting engine, enabling authenticated users to analyze historical cash flows, monthly trends, category expense breakdowns, subscription-wise spending, billing cycle distributions, and payment status distributions, backed by raw PostgreSQL queries and strict currency isolation.
+SpendWise AI is a full-stack subscription management and cost-optimization project. Stage 8 adds a polished, responsive financial dashboard over the Stage 7 Spending Analytics & SQL Reporting engine, enabling authenticated users to explore cash flow, categories, subscription rankings, billing commitments, payment states, refunds, and upcoming renewals with strict currency isolation.
 
 The product is built on a PostgreSQL relational database with parameterized node-postgres (`pg`) queries, short-lived JWT authentication, strict user isolation, check constraints, row-level locks for financial integrity, and a responsive React 19 UI.
 
 ## Current Status
 
-**Stage 7 of 12 — Spending Analytics & SQL Reporting**
+**Stage 8 of 12 — Frontend Dashboard & Integration**
 
 Implemented:
 
+- **Integrated Financial Dashboard:** Protected `/dashboard` route with shared period/currency filters, financial KPIs, Recharts visualizations, payment/refund summaries, upcoming renewals, partial-failure recovery, and accessible exact-value alternatives (see [DASHBOARD_FRONTEND.md](docs/DASHBOARD_FRONTEND.md))
+- **Responsive Application Navigation:** Active desktop navigation, compact mobile menu, dashboard landing after authentication, and preserved public homepage behavior
 - **Spending Analytics & SQL Reporting Engine:** Database-driven financial cash flow analytics, monthly trends with zero-activity period generation, category breakdowns, subscription-wise spending, top expensive subscription rankings, and streaming CSV export (see [SPENDING_ANALYTICS.md](docs/SPENDING_ANALYTICS.md) and [ANALYTICS_SQL_QUERIES.md](docs/ANALYTICS_SQL_QUERIES.md))
 - **DBMS Query Architecture:** CTE-driven double-counting prevention, conditional aggregation (`SUM(CASE ...)`), `generate_series` calendar matrix generation, window functions (`COUNT(*) OVER()`), and multi-table relational joins with zero ORM abstraction
 - **Payment Tracking & Billing Management (Stage 6):** Full manual payment recording, historical snapshot preservation, paginated & filtered audit listings, controlled payment corrections, and concurrency-safe refund tracking with row-level locks (see [PAYMENT_BILLING_MANAGEMENT.md](docs/PAYMENT_BILLING_MANAGEMENT.md))
@@ -21,18 +23,18 @@ Implemented:
 - **Lifecycle & Status Transitions:** Tracking of `trial`, `active`, `paused`, and `cancelled` states with synchronized `cancelled_at` timestamps
 - **Deterministic Scheduling Rules:** Database constraints ensuring `next_renewal_date` and `trial_end_date` are mandatory when required and never precede `start_date`
 - **Soft Archival Policy:** Safe deactivation via `archived_at` timestamps preserving referential integrity for historical payments and allowing instant restoration
-- **Responsive React 19 UI:** Desktop tables with inline actions, mobile card grids, KPI spend statistics, interactive add/edit forms, payment filters, refund modals, analytics overview cards, and accessible confirmation dialogs
+- **Responsive React 19 UI:** Desktop tables, mobile cards, dashboard charts, KPI metrics, interactive forms, payment filters, refund modals, analytics tables, and accessible confirmation dialogs
 - **Multi-Tenant User Isolation:** Parameterized queries strictly bound to verified session user IDs; cross-user access attempts rejected with 404
 - **Dual-Token Authentication (Stage 4):** Bcrypt hashing, short-lived JWT access tokens, rotating PostgreSQL-backed refresh sessions with replay detection, HTTP-only cookies, and CSRF protection
-- **Automated Test Coverage:** 48 backend tests (PostgreSQL integration tests against `spendwise_test` + unit tests) and 32 client Vitest tests (80 total passing tests; 37 live DB tests)
+- **Automated Test Coverage:** Node/PostgreSQL integration suites plus Vitest and Testing Library coverage for authentication, subscriptions, payments, analytics, and dashboard behavior
 
-Not implemented yet: frontend dashboard & interactive charting (Stage 8), renewal reminder workers (Stage 9), or AI optimization (Stage 10).
+Not implemented yet: renewal reminder workers (Stage 9), AI optimization (Stage 10), advanced DBMS objects (Stage 11), or production deployment (Stage 12).
 
 ## Technology Stack
 
 | Layer | Implemented | Planned later |
 | --- | --- | --- |
-| Frontend | React 19, Vite 8, Tailwind CSS 4, React Router 7, Axios, Vitest, Testing Library | Recharts, spending charts, and notification center |
+| Frontend | React 19, Vite 8, Tailwind CSS 4, React Router 7, Axios, Recharts, Vitest, Testing Library | Notification center |
 | Backend | Node.js 22, Express 5, bcrypt, jsonwebtoken, cookie-parser, express-rate-limit, zod, raw `pg` | Analytics repositories, reporting views, notification scheduler |
 | Database | PostgreSQL 18.6, raw parameterized SQL with `pg`, migrations `001_initial_schema` and `002_auth_sessions` | Advanced reports, views, triggers, and measured DBMS optimization |
 | Quality | npm workspaces, ESLint 9, Prettier, Node test runner, Vitest, Supertest, PostgreSQL integration tests | End-to-end browser testing |
@@ -211,6 +213,7 @@ See the [ER Diagram](docs/ER_DIAGRAM.md), [Schema Reference](docs/DATABASE_SCHEM
 - [Payment Tracking & Billing Management](docs/PAYMENT_BILLING_MANAGEMENT.md)
 - [Spending Analytics Engine](docs/SPENDING_ANALYTICS.md)
 - [DBMS Analytics SQL Queries](docs/ANALYTICS_SQL_QUERIES.md)
+- [Dashboard Frontend & Integration](docs/DASHBOARD_FRONTEND.md)
 - [General Local Setup](docs/LOCAL_SETUP.md)
 
 ## Roadmap
@@ -222,8 +225,8 @@ See the [ER Diagram](docs/ER_DIAGRAM.md), [Schema Reference](docs/DATABASE_SCHEM
 5. Subscription Management — **complete**
 6. Payment Tracking & Billing Management — **complete**
 7. Spending Analytics & SQL Reporting — **complete**
-8. Frontend Dashboard & Integration — **next stage**
-9. Renewal Reminders & Notifications
+8. Frontend Dashboard & Integration — **complete**
+9. Renewal Reminders & Notifications — **next stage**
 10. AI-Powered Cost Optimization
 11. Advanced DBMS Implementation
 12. Testing, Deployment & Documentation
@@ -235,6 +238,7 @@ See the [ER Diagram](docs/ER_DIAGRAM.md), [Schema Reference](docs/DATABASE_SCHEM
 - User accounts, JWT auth, rotating sessions, and user isolation are active.
 - Subscription CRUD, payment history, refund recording, and forward billing projections are active.
 - Spending analytics, multi-period aggregations, CTE-based double-counting prevention, calendar series generation, and CSV export are active.
-- Frontend dashboard visualizations, interactive charting libraries (Recharts), and cohesive home summaries are owned by Stage 8.
+- The dashboard visualizes backend-authoritative totals; browser chart numbers are presentation-only and exact values remain visible in text/tables.
+- Renewal widgets are read-only projections; scheduling and delivery remain Stage 9 work.
 - The integration test suite may rebuild only the dedicated `spendwise_test` schema.
 - Recommendations remain advisory future records and must be grounded in stored data.

@@ -1,76 +1,139 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 
 import { updateProfile } from '../api/account.js';
 import { getApiErrorMessage } from '../api/http.js';
 import { useAuth } from '../auth/useAuth.js';
+import { profileSchema } from '../forms/schemas.js';
+import { initials, pageIndex } from '../layout/nav.js';
+import { ConfirmDialog } from '../ui/Dialog.jsx';
+import { Field, FormMessage, Input } from '../ui/Field.jsx';
+import { Notice } from '../ui/Feedback.jsx';
+import { PageHeader } from '../ui/Page.jsx';
+import { Pill, PillLink } from '../ui/Pill.jsx';
+import { Card, CardHeader } from '../ui/Surface.jsx';
+import { formatDate } from '../utils/dates.js';
 
 function AccountPage() {
-  const { setUser, user } = useAuth();
-  const [displayName, setDisplayName] = useState(user.displayName);
-  const [message, setMessage] = useState('');
-  const [saving, setSaving] = useState(false);
+  const { logout, setUser, user } = useAuth();
+  const navigate = useNavigate();
+  const [message, setMessage] = useState({ text: '', tone: 'success' });
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const {
+    formState: { errors, isSubmitting },
+    handleSubmit,
+    register,
+  } = useForm({
+    defaultValues: { displayName: user.displayName },
+    resolver: zodResolver(profileSchema),
+  });
 
-  async function submit(event) {
-    event.preventDefault();
-    setMessage('');
-    setSaving(true);
-
+  async function submit(values) {
+    setMessage({ text: '', tone: 'success' });
     try {
-      const updatedUser = await updateProfile({ displayName });
+      const updatedUser = await updateProfile({ displayName: values.displayName });
       setUser(updatedUser);
-      setMessage('Profile updated.');
+      setMessage({ text: 'Profile updated.', tone: 'success' });
     } catch (error) {
-      setMessage(getApiErrorMessage(error));
-    } finally {
-      setSaving(false);
+      setMessage({ text: getApiErrorMessage(error), tone: 'error' });
     }
   }
 
+  async function handleLogout() {
+    setLoggingOut(true);
+    navigate('/', { replace: true });
+    await logout();
+  }
+
   return (
-    <section className="mx-auto max-w-4xl px-5 py-16 sm:px-8 sm:py-24">
-      <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-300">Your account</p>
-      <h1 className="mt-3 text-4xl font-black tracking-tight text-white">Account profile</h1>
-      <div className="mt-9 grid gap-6 md:grid-cols-[1.2fr_0.8fr]">
-        <form className="rounded-3xl border border-white/10 bg-white/[0.055] p-7" onSubmit={submit}>
-          <label className="block text-sm font-semibold text-slate-200">
-            Display name
-            <input
-              className="mt-2 w-full rounded-xl border border-white/15 bg-slate-950/60 px-4 py-3 text-white outline-none focus:border-emerald-300"
-              maxLength={100}
-              onChange={(event) => setDisplayName(event.target.value)}
-              required
-              value={displayName}
+    <div className="mx-auto w-full max-w-5xl">
+      <PageHeader
+        description="Your display name and sign-in identity."
+        index={pageIndex('/account')}
+        title="Account profile"
+      />
+      <div className="grid gap-6 lg:grid-cols-12">
+        <Card className="lg:col-span-7">
+          <CardHeader title="Profile" />
+          <form className="space-y-5" noValidate onSubmit={handleSubmit(submit)}>
+            <Field error={errors.displayName?.message} label="Display name">
+              {(id, describedBy, invalid) => (
+                <Input
+                  aria-describedby={describedBy}
+                  id={id}
+                  invalid={invalid}
+                  maxLength={100}
+                  {...register('displayName')}
+                />
+              )}
+            </Field>
+            <Field hint="Email cannot be changed here." label="Email">
+              {(id, describedBy) => (
+                <Input aria-describedby={describedBy} disabled id={id} value={user.email} />
+              )}
+            </Field>
+            {message.tone === 'success' ? (
+              <Notice>{message.text}</Notice>
+            ) : (
+              <FormMessage>{message.text}</FormMessage>
+            )}
+            <Pill disabled={isSubmitting} type="submit" variant="ink">
+              {isSubmitting ? 'Saving…' : 'Save profile'}
+            </Pill>
+          </form>
+        </Card>
+
+        <div className="space-y-6 lg:col-span-5">
+          <Card delay={0.05} look="obsidian">
+            <div className="flex items-center gap-4">
+              <span
+                aria-hidden="true"
+                className="pill-paper grid size-14 shrink-0 place-items-center rounded-full text-lg font-bold"
+              >
+                {initials(user.displayName)}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-lg font-bold">{user.displayName}</p>
+                <p className="truncate text-sm text-soft">{user.email}</p>
+              </div>
+            </div>
+            {user.createdAt && (
+              <p className="mt-5 text-sm text-soft">
+                Member since {formatDate(user.createdAt, 'MMMM YYYY')}
+              </p>
+            )}
+          </Card>
+          <Card delay={0.1}>
+            <CardHeader
+              description="Configure reminders, display preferences, and password security from settings."
+              title="Account controls"
             />
-          </label>
-          <label className="mt-5 block text-sm font-semibold text-slate-400">
-            Email
-            <input
-              className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-slate-400"
-              disabled
-              value={user.email}
-            />
-          </label>
-          {message && <p className="mt-4 text-sm text-slate-300">{message}</p>}
-          <button
-            className="mt-6 rounded-xl bg-emerald-300 px-5 py-3 font-bold text-slate-950 disabled:opacity-60"
-            disabled={saving}
-            type="submit"
-          >
-            {saving ? 'Saving…' : 'Save profile'}
-          </button>
-        </form>
-        <aside className="rounded-3xl border border-white/10 bg-slate-900/70 p-7">
-          <h2 className="text-xl font-bold text-white">Account controls</h2>
-          <p className="mt-3 leading-7 text-slate-400">
-            Configure reminders, display preferences, and password security from settings.
-          </p>
-          <Link className="mt-6 inline-flex font-bold text-emerald-300" to="/settings">
-            Open settings →
-          </Link>
-        </aside>
+            <div className="flex flex-wrap gap-3">
+              <PillLink icon="settings" to="/settings">
+                Open settings
+              </PillLink>
+              <Pill icon="logout" onClick={() => setConfirmLogout(true)} variant="outline">
+                Log out of this device
+              </Pill>
+            </div>
+          </Card>
+        </div>
       </div>
-    </section>
+
+      <ConfirmDialog
+        busy={loggingOut}
+        busyLabel="Logging out…"
+        confirmLabel="Log out"
+        description="Your session on this browser is revoked on the server. Your records stay saved; sign in again any time."
+        onConfirm={handleLogout}
+        onOpenChange={setConfirmLogout}
+        open={confirmLogout}
+        title="Log out of SpendWise AI?"
+      />
+    </div>
   );
 }
 

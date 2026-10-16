@@ -15,12 +15,14 @@ export function calculateMonthlyEquivalent(price, billingCycle) {
   }
 }
 
+// One shared money formatter for the whole UI. `en-IN` grouping (₹1,25,000.00) suits the
+// primary INR audience; every other ISO currency keeps its own symbol and is never converted.
 export function formatCurrency(amount, currencyCode = 'USD') {
   const numericAmount = Number(amount);
   const safeAmount = Number.isFinite(numericAmount) ? numericAmount : 0;
 
   try {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-IN', {
       currency: currencyCode,
       currencyDisplay: 'symbol',
       maximumFractionDigits: 2,

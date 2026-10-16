@@ -1,33 +1,64 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useForm, useWatch } from 'react-hook-form';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { getApiErrorMessage } from '../api/http.js';
 import { createPayment } from '../api/payments.js';
 import { getSubscriptions } from '../api/subscriptions.js';
+import { paymentSchema } from '../forms/schemas.js';
+import { pageIndex } from '../layout/nav.js';
+import { Field, FormMessage, Input, Select, Textarea } from '../ui/Field.jsx';
+import Icon from '../ui/Icon.jsx';
+import { PageHeader } from '../ui/Page.jsx';
+import { BackLink, Pill, PillLink } from '../ui/Pill.jsx';
+import { Card, CardHeader } from '../ui/Surface.jsx';
+import { useToast } from '../ui/toastContext.js';
 import { calculateEstimatedPeriodEnd, formatCurrency } from '../utils/cost.js';
+
+const today = () => new Date().toISOString().split('T')[0];
 
 export default function RecordPaymentPage() {
   const [searchParams] = useSearchParams();
   const preselectedSubId = searchParams.get('subscriptionId');
-
   const navigate = useNavigate();
-  const today = new Date().toISOString().split('T')[0];
-
+  const { notify } = useToast();
   const [subscriptions, setSubscriptions] = useState([]);
-  const [selectedSubId, setSelectedSubId] = useState(preselectedSubId || '');
-  const [amount, setAmount] = useState('');
-  const [currencyCode, setCurrencyCode] = useState('USD');
-  const [paymentDate, setPaymentDate] = useState(today);
-  const [paymentStatus, setPaymentStatus] = useState('completed');
-  const [billingPeriodStart, setBillingPeriodStart] = useState('');
-  const [billingPeriodEnd, setBillingPeriodEnd] = useState('');
-  const [notes, setNotes] = useState('');
-
   const [loadingSubs, setLoadingSubs] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Fetch active and paused subscriptions
+  const {
+    control,
+    formState: { errors, isSubmitting },
+    handleSubmit,
+    register,
+    setValue,
+  } = useForm({
+    defaultValues: {
+      amount: '',
+      billingPeriodEnd: '',
+      billingPeriodStart: '',
+      currencyCode: 'USD',
+      notes: '',
+      paymentDate: today(),
+      paymentStatus: 'completed',
+      subscriptionId: preselectedSubId || '',
+    },
+    resolver: zodResolver(paymentSchema),
+  });
+  const selectedSubId = useWatch({ control, name: 'subscriptionId' });
+  const subscriptionField = register('subscriptionId');
+
+  // Same autofill as before: amount, currency and an estimated billing period.
+  function applySubscription(sub) {
+    setValue('subscriptionId', String(sub.id));
+    setValue('amount', String(sub.price));
+    setValue('currencyCode', sub.currencyCode);
+    const baseDate = sub.nextRenewalDate || sub.startDate || today();
+    setValue('billingPeriodStart', baseDate);
+    setValue('billingPeriodEnd', calculateEstimatedPeriodEnd(baseDate, sub.billingCycle));
+  }
+
   useEffect(() => {
     getSubscriptions({ archived: 'false', limit: 100 })
       .then((data) => {
@@ -35,325 +66,212 @@ export default function RecordPaymentPage() {
         setSubscriptions(items);
         if (preselectedSubId) {
           const match = items.find((s) => String(s.id) === String(preselectedSubId));
-          if (match) {
-            setSelectedSubId(String(match.id));
-            setAmount(String(match.price));
-            setCurrencyCode(match.currencyCode);
-            const baseDate = match.nextRenewalDate || match.startDate || today;
-            setBillingPeriodStart(baseDate);
-            setBillingPeriodEnd(calculateEstimatedPeriodEnd(baseDate, match.billingCycle));
-          }
+          if (match) applySubscription(match);
         }
       })
       .catch((err) => setError(getApiErrorMessage(err)))
       .finally(() => setLoadingSubs(false));
-  }, [preselectedSubId, today]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per preselected id
+  }, [preselectedSubId]);
 
-  function handleSubscriptionSelect(sub) {
-    setSelectedSubId(String(sub.id));
-    setAmount(String(sub.price));
-    setCurrencyCode(sub.currencyCode);
-
-    // Compute suggested billing period dates based on subscription renewal date or start date
-    const baseDate = sub.nextRenewalDate || sub.startDate || today;
-    setBillingPeriodStart(baseDate);
-    const estimatedEnd = calculateEstimatedPeriodEnd(baseDate, sub.billingCycle);
-    setBillingPeriodEnd(estimatedEnd);
-  }
-
-  function onSelectChange(e) {
-    const subId = e.target.value;
-    setSelectedSubId(subId);
-    if (!subId) {
-      setAmount('');
-      setBillingPeriodStart('');
-      setBillingPeriodEnd('');
-      return;
-    }
-    const match = subscriptions.find((s) => String(s.id) === subId);
-    if (match) {
-      handleSubscriptionSelect(match);
-    }
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function submit(values) {
     setError('');
-
-    if (!selectedSubId) {
-      setError('Please select a subscription.');
-      return;
+    const payload = {
+      amount: Number(values.amount).toFixed(2),
+      currencyCode: values.currencyCode.toUpperCase(),
+      notes: values.notes.trim() || undefined,
+      paymentDate: values.paymentDate,
+      paymentStatus: values.paymentStatus,
+    };
+    if (values.billingPeriodStart && values.billingPeriodEnd) {
+      payload.billingPeriodStart = values.billingPeriodStart;
+      payload.billingPeriodEnd = values.billingPeriodEnd;
     }
-
-    const numAmount = Number(amount);
-    if (!Number.isFinite(numAmount) || numAmount <= 0) {
-      setError('Payment amount must be greater than zero.');
-      return;
-    }
-
-    if (billingPeriodStart && billingPeriodEnd && billingPeriodEnd < billingPeriodStart) {
-      setError('Billing period end date must be on or after start date.');
-      return;
-    }
-
-    setSubmitting(true);
+    const subscription = subscriptions.find((s) => String(s.id) === String(values.subscriptionId));
     try {
-      const payload = {
-        amount: numAmount.toFixed(2),
-        currencyCode: currencyCode.toUpperCase(),
-        notes: notes.trim() || undefined,
-        paymentDate,
-        paymentStatus,
-      };
-
-      if (billingPeriodStart && billingPeriodEnd) {
-        payload.billingPeriodStart = billingPeriodStart;
-        payload.billingPeriodEnd = billingPeriodEnd;
-      }
-
-      const created = await createPayment(selectedSubId, payload);
-      navigate(`/payments/${created.id}`);
+      const created = await createPayment(values.subscriptionId, payload);
+      notify('Payment recorded.');
+      navigate(`/payments/${created.id}`, {
+        state: { previousRenewalDate: subscription?.nextRenewalDate ?? null, recorded: true },
+      });
     } catch (err) {
       setError(getApiErrorMessage(err));
-      setSubmitting(false);
     }
   }
 
   return (
-    <section className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
-      <div className="flex items-center justify-between">
-        <Link
-          className="text-xs font-semibold uppercase tracking-wider text-slate-400 transition hover:text-white"
-          to="/payments"
-        >
-          &larr; Back to Payments
-        </Link>
-      </div>
+    <div className="mx-auto w-full max-w-3xl">
+      <BackLink to="/payments">Back to Payments</BackLink>
+      <PageHeader
+        description="Manually log a subscription payment that occurred with your external service provider."
+        index={pageIndex('/payments')}
+        title="Record Payment"
+      />
 
-      <div className="mt-4">
-        <h1 className="text-3xl font-extrabold tracking-tight text-white">Record Payment</h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Manually log a subscription payment that occurred with your external service provider.
+      <div className="neu-pressed depth-1 mb-6 flex items-start gap-3 rounded-2xl p-4 text-sm leading-6">
+        <Icon className="mt-0.5 size-5 shrink-0" name="alert" />
+        <p>
+          <strong>Manual Financial Entry:</strong> SpendWise AI does not process cards or initiate
+          external charges. Recorded payments represent historical entries you manually confirm.
         </p>
       </div>
 
-      {/* Manual Tracking Disclaimer */}
-      <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-xs text-emerald-200">
-        <div className="flex gap-2">
-          <span className="font-bold">Manual Financial Entry:</span>
-          <p className="text-emerald-300/90">
-            SpendWise AI does not process cards or initiate external charges. Recorded payments
-            represent historical entries you manually confirm.
-          </p>
-        </div>
-      </div>
-
-      {error && (
-        <div className="mt-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-300">
-          {error}
-        </div>
-      )}
-
-      <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-        {/* Subscription Selection */}
-        <div className="rounded-3xl border border-white/10 bg-slate-900/50 p-6">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">
-            Target Subscription
-          </h2>
-          <div className="mt-4">
-            <label
-              className="block text-xs font-semibold uppercase tracking-wider text-slate-400"
-              htmlFor="sub-select"
-            >
-              Select Subscription *
-            </label>
-            <select
-              className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-emerald-400 focus:outline-none"
-              disabled={loadingSubs}
-              id="sub-select"
-              onChange={onSelectChange}
-              required
-              value={selectedSubId}
-            >
-              <option value="">
-                {loadingSubs ? 'Loading your subscriptions...' : '-- Choose a subscription --'}
-              </option>
-              {subscriptions.map((sub) => (
-                <option key={sub.id} value={sub.id}>
-                  {sub.serviceName || sub.customServiceName}
-                  {sub.planName ? ` (${sub.planName})` : ''} —{' '}
-                  {formatCurrency(sub.price, sub.currencyCode)} / {sub.billingCycle}
+      <form className="space-y-6" noValidate onSubmit={handleSubmit(submit)}>
+        <Card look="glass">
+          <CardHeader as="h2" title="Target Subscription" />
+          <Field
+            error={errors.subscriptionId?.message}
+            id="sub-select"
+            label="Select Subscription *"
+          >
+            {(id, describedBy, invalid) => (
+              <Select
+                aria-describedby={describedBy}
+                disabled={loadingSubs}
+                id={id}
+                invalid={invalid}
+                {...subscriptionField}
+                onChange={(event) => {
+                  subscriptionField.onChange(event);
+                  const match = subscriptions.find((s) => String(s.id) === event.target.value);
+                  if (match) applySubscription(match);
+                  else {
+                    setValue('amount', '');
+                    setValue('billingPeriodStart', '');
+                    setValue('billingPeriodEnd', '');
+                  }
+                }}
+              >
+                <option value="">
+                  {loadingSubs ? 'Loading your subscriptions...' : '-- Choose a subscription --'}
                 </option>
-              ))}
-            </select>
+                {subscriptions.map((sub) => (
+                  <option key={sub.id} value={sub.id}>
+                    {sub.serviceName || sub.customServiceName}
+                    {sub.planName ? ` (${sub.planName})` : ''} —{' '}
+                    {formatCurrency(sub.price, sub.currencyCode)} / {sub.billingCycle}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+        </Card>
+
+        <Card delay={0.05}>
+          <CardHeader as="h2" title="Payment Details" />
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field
+              error={errors.amount?.message}
+              hint="Defaults to subscription price, but can be modified for historical variations."
+              id="pay-amount"
+              label="Amount Paid *"
+            >
+              {(id, describedBy, invalid) => (
+                <Input
+                  aria-describedby={describedBy}
+                  className="num"
+                  id={id}
+                  inputMode="decimal"
+                  invalid={invalid}
+                  min="0.01"
+                  placeholder="499.00"
+                  step="0.01"
+                  type="number"
+                  {...register('amount')}
+                />
+              )}
+            </Field>
+            <Field
+              error={errors.currencyCode?.message}
+              id="pay-currency"
+              label="Currency Code (ISO) *"
+            >
+              {(id, describedBy, invalid) => (
+                <Input
+                  aria-describedby={describedBy}
+                  className="uppercase"
+                  id={id}
+                  invalid={invalid}
+                  maxLength={3}
+                  {...register('currencyCode', { setValueAs: (value) => value.toUpperCase() })}
+                />
+              )}
+            </Field>
+            <Field error={errors.paymentDate?.message} id="pay-date" label="Payment Date *">
+              {(id, describedBy, invalid) => (
+                <Input
+                  aria-describedby={describedBy}
+                  id={id}
+                  invalid={invalid}
+                  type="date"
+                  {...register('paymentDate')}
+                />
+              )}
+            </Field>
+            <Field id="pay-status" label="Recorded Status *">
+              {(id) => (
+                <Select id={id} {...register('paymentStatus')}>
+                  <option value="completed">Completed (Successfully paid)</option>
+                  <option value="pending">Pending (Unconfirmed)</option>
+                  <option value="failed">Failed (Declined / Unsuccessful)</option>
+                  <option value="cancelled">Cancelled (Voided)</option>
+                </Select>
+              )}
+            </Field>
           </div>
-        </div>
+        </Card>
 
-        {/* Payment Values & Currency */}
-        <div className="rounded-3xl border border-white/10 bg-slate-900/50 p-6">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">
-            Payment Details
-          </h2>
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label
-                className="block text-xs font-semibold uppercase tracking-wider text-slate-400"
-                htmlFor="pay-amount"
-              >
-                Amount Paid *
-              </label>
-              <input
-                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-emerald-400 focus:outline-none"
-                id="pay-amount"
-                min="0.01"
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="499.00"
-                required
-                step="0.01"
-                type="number"
-                value={amount}
-              />
-              <p className="mt-1 text-[11px] text-slate-500">
-                Defaults to subscription price, but can be modified for historical variations.
-              </p>
-            </div>
-
-            <div>
-              <label
-                className="block text-xs font-semibold uppercase tracking-wider text-slate-400"
-                htmlFor="pay-currency"
-              >
-                Currency Code (ISO) *
-              </label>
-              <input
-                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-2.5 text-sm uppercase text-white focus:border-emerald-400 focus:outline-none"
-                id="pay-currency"
-                maxLength={3}
-                onChange={(e) => setCurrencyCode(e.target.value.toUpperCase())}
-                pattern="^[A-Z]{3}$"
-                required
-                type="text"
-                value={currencyCode}
-              />
-            </div>
-
-            <div>
-              <label
-                className="block text-xs font-semibold uppercase tracking-wider text-slate-400"
-                htmlFor="pay-date"
-              >
-                Payment Date *
-              </label>
-              <input
-                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-emerald-400 focus:outline-none"
-                id="pay-date"
-                onChange={(e) => setPaymentDate(e.target.value)}
-                required
-                type="date"
-                value={paymentDate}
-              />
-            </div>
-
-            <div>
-              <label
-                className="block text-xs font-semibold uppercase tracking-wider text-slate-400"
-                htmlFor="pay-status"
-              >
-                Recorded Status *
-              </label>
-              <select
-                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-emerald-400 focus:outline-none"
-                id="pay-status"
-                onChange={(e) => setPaymentStatus(e.target.value)}
-                value={paymentStatus}
-              >
-                <option value="completed">Completed (Successfully paid)</option>
-                <option value="pending">Pending (Unconfirmed)</option>
-                <option value="failed">Failed (Declined / Unsuccessful)</option>
-                <option value="cancelled">Cancelled (Voided)</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Billing Period */}
-        <div className="rounded-3xl border border-white/10 bg-slate-900/50 p-6">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">
-            Billing Coverage Period
-          </h2>
-          <p className="mt-1 text-xs text-slate-400">
-            Optional period covered by this payment (e.g. monthly billing cycle).
-          </p>
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label
-                className="block text-xs font-semibold uppercase tracking-wider text-slate-400"
-                htmlFor="period-start"
-              >
-                Period Start Date
-              </label>
-              <input
-                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-emerald-400 focus:outline-none"
-                id="period-start"
-                onChange={(e) => setBillingPeriodStart(e.target.value)}
-                type="date"
-                value={billingPeriodStart}
-              />
-            </div>
-            <div>
-              <label
-                className="block text-xs font-semibold uppercase tracking-wider text-slate-400"
-                htmlFor="period-end"
-              >
-                Period End Date
-              </label>
-              <input
-                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-emerald-400 focus:outline-none"
-                id="period-end"
-                onChange={(e) => setBillingPeriodEnd(e.target.value)}
-                type="date"
-                value={billingPeriodEnd}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Notes */}
-        <div className="rounded-3xl border border-white/10 bg-slate-900/50 p-6">
-          <label
-            className="block text-xs font-semibold uppercase tracking-wider text-slate-400"
-            htmlFor="pay-notes"
-          >
-            Notes & Reference (Optional)
-          </label>
-          <textarea
-            className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-emerald-400 focus:outline-none"
-            id="pay-notes"
-            maxLength={2000}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Invoice number, payment method reference, or provider confirmation receipt notes"
-            rows={3}
-            value={notes}
+        <Card delay={0.1}>
+          <CardHeader
+            as="h2"
+            description="Optional period covered by this payment (e.g. monthly billing cycle). Provide both dates or neither."
+            title="Billing Coverage Period"
           />
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field id="period-start" label="Period Start Date">
+              {(id) => <Input id={id} type="date" {...register('billingPeriodStart')} />}
+            </Field>
+            <Field error={errors.billingPeriodEnd?.message} id="period-end" label="Period End Date">
+              {(id, describedBy, invalid) => (
+                <Input
+                  aria-describedby={describedBy}
+                  id={id}
+                  invalid={invalid}
+                  type="date"
+                  {...register('billingPeriodEnd')}
+                />
+              )}
+            </Field>
+          </div>
+        </Card>
+
+        <Card delay={0.15}>
+          <Field error={errors.notes?.message} id="pay-notes" label="Notes & Reference (Optional)">
+            {(id, describedBy, invalid) => (
+              <Textarea
+                aria-describedby={describedBy}
+                id={id}
+                invalid={invalid}
+                maxLength={2000}
+                placeholder="Invoice number, payment method reference, or provider confirmation receipt notes"
+                rows={3}
+                {...register('notes')}
+              />
+            )}
+          </Field>
+        </Card>
+
+        <div aria-live="assertive">
+          <FormMessage>{error}</FormMessage>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center justify-end gap-3 pt-4">
-          <Link
-            className="rounded-xl border border-white/10 px-5 py-2.5 text-sm font-semibold text-slate-300 hover:bg-white/5"
-            to="/payments"
-          >
-            Cancel
-          </Link>
-          <button
-            className="rounded-xl bg-emerald-400 px-6 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-300 disabled:opacity-50"
-            disabled={submitting || !selectedSubId}
-            type="submit"
-          >
-            {submitting ? 'Recording Payment...' : 'Record Payment'}
-          </button>
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <PillLink to="/payments">Cancel</PillLink>
+          <Pill disabled={isSubmitting || !selectedSubId} type="submit" variant="ink">
+            {isSubmitting ? 'Recording Payment...' : 'Record Payment'}
+          </Pill>
         </div>
       </form>
-    </section>
+    </div>
   );
 }

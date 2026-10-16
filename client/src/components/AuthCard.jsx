@@ -1,11 +1,24 @@
-function AuthCard({ children, description, title }) {
+import { motion, useReducedMotion } from 'framer-motion';
+
+import { BrandGlyph } from '../layout/BrandMark.jsx';
+
+/** Centered glass card floating over the chrome blob field. */
+function AuthCard({ children, description, footer, title }) {
+  const reduce = useReducedMotion();
   return (
-    <section className="mx-auto w-full max-w-lg px-5 py-16 sm:py-24">
-      <div className="rounded-[2rem] border border-white/10 bg-white/[0.055] p-7 shadow-2xl shadow-black/10 sm:p-9">
-        <h1 className="text-3xl font-black tracking-tight text-white">{title}</h1>
-        <p className="mt-3 leading-7 text-slate-400">{description}</p>
+    <section className="mx-auto flex w-full max-w-[29rem] flex-col px-4 py-12 sm:py-20">
+      <motion.div
+        animate={{ y: 0 }}
+        className="glass rounded-(--radius-panel) p-6 sm:p-9"
+        initial={reduce ? false : { y: 12 }}
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <BrandGlyph className="size-12" />
+        <h1 className="mt-6 text-[clamp(1.9rem,1.5rem+1.4vw,2.4rem)]">{title}</h1>
+        <p className="mt-3 leading-7 text-(--graphite)">{description}</p>
         <div className="mt-8">{children}</div>
-      </div>
+      </motion.div>
+      {footer && <div className="mt-6 text-center text-sm text-(--graphite)">{footer}</div>}
     </section>
   );
 }

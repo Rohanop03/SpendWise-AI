@@ -1,18 +1,55 @@
+import { AnimatePresence } from 'framer-motion';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 
 import { getCategories } from '../api/catalog.js';
 import { getApiErrorMessage } from '../api/http.js';
 import { archiveSubscription, getSubscriptions } from '../api/subscriptions.js';
-import ConfirmArchiveModal from '../components/subscriptions/ConfirmArchiveModal.jsx';
-import SubscriptionCard from '../components/subscriptions/SubscriptionCard.jsx';
-import SubscriptionEmptyState from '../components/subscriptions/SubscriptionEmptyState.jsx';
-import SubscriptionFilters from '../components/subscriptions/SubscriptionFilters.jsx';
-import SubscriptionTable from '../components/subscriptions/SubscriptionTable.jsx';
+import {
+  SubscriptionCard,
+  SubscriptionTable,
+} from '../components/subscriptions/SubscriptionViews.jsx';
+import { pageIndex } from '../layout/nav.js';
+import { ConfirmDialog } from '../ui/Dialog.jsx';
+import { CardSkeleton, EmptyState, InlineError, Skeleton } from '../ui/Feedback.jsx';
+import { Field, Select } from '../ui/Field.jsx';
+import Icon from '../ui/Icon.jsx';
+import { useMediaQuery } from '../ui/motion.js';
+import { PageHeader } from '../ui/Page.jsx';
+import { IconButton, Pill, PillLink } from '../ui/Pill.jsx';
+import Segmented from '../ui/Segmented.jsx';
+import { Card } from '../ui/Surface.jsx';
+import { useToast } from '../ui/toastContext.js';
 import { calculateMonthlyEquivalent, formatCurrency } from '../utils/cost.js';
 
+const initialFilters = {
+  billingCycle: '',
+  categoryId: '',
+  search: '',
+  sortBy: 'createdAt',
+  sortOrder: 'desc',
+  status: '',
+};
+
+function queryFor(activeTab, filters, pagination) {
+  const params = {
+    archived: activeTab === 'archived' ? 'true' : 'false',
+    limit: pagination.limit,
+    page: pagination.page,
+    sortBy: filters.sortBy,
+    sortOrder: filters.sortOrder,
+  };
+  if (filters.search) params.search = filters.search;
+  if (filters.status) params.status = filters.status;
+  if (filters.categoryId) params.categoryId = filters.categoryId;
+  if (filters.billingCycle) params.billingCycle = filters.billingCycle;
+  return params;
+}
+
 export default function SubscriptionsPage() {
-  const [activeTab, setActiveTab] = useState('active'); // 'active' | 'archived'
+  const { notify } = useToast();
+  const phone = useMediaQuery('(max-width: 767px)');
+  const [view, setView] = useState(null);
+  const [activeTab, setActiveTab] = useState('active');
   const [categories, setCategories] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
   const [pagination, setPagination] = useState({
@@ -25,42 +62,19 @@ export default function SubscriptionsPage() {
   const [error, setError] = useState('');
   const [archiveTarget, setArchiveTarget] = useState(null);
   const [isArchiving, setIsArchiving] = useState(false);
-
-  const initialFilters = {
-    billingCycle: '',
-    categoryId: '',
-    search: '',
-    sortBy: 'createdAt',
-    sortOrder: 'desc',
-    status: '',
-  };
   const [filters, setFilters] = useState(initialFilters);
+  const [reloadKey, setReloadKey] = useState(0);
+  const currentView = view || (phone ? 'cards' : 'table');
 
-  // Load categories once
   useEffect(() => {
     getCategories()
       .then(setCategories)
-      .catch((err) => console.error('Failed to load categories:', err));
+      .catch(() => setCategories([]));
   }, []);
 
-  // Fetch subscriptions when tab, filters, or page change
   useEffect(() => {
     let isMounted = true;
-
-    const params = {
-      archived: activeTab === 'archived' ? 'true' : 'false',
-      limit: pagination.limit,
-      page: pagination.page,
-      sortBy: filters.sortBy,
-      sortOrder: filters.sortOrder,
-    };
-
-    if (filters.search) params.search = filters.search;
-    if (filters.status) params.status = filters.status;
-    if (filters.categoryId) params.categoryId = filters.categoryId;
-    if (filters.billingCycle) params.billingCycle = filters.billingCycle;
-
-    getSubscriptions(params)
+    getSubscriptions(queryFor(activeTab, filters, pagination))
       .then((data) => {
         if (!isMounted) return;
         setSubscriptions(data.items);
@@ -68,21 +82,30 @@ export default function SubscriptionsPage() {
         setError('');
       })
       .catch((err) => {
-        if (!isMounted) return;
-        setError(getApiErrorMessage(err));
+        if (isMounted) setError(getApiErrorMessage(err));
       })
       .finally(() => {
         if (isMounted) setLoading(false);
       });
-
     return () => {
       isMounted = false;
     };
-  }, [activeTab, filters, pagination.page, pagination.limit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- page/limit are the pagination inputs
+  }, [activeTab, filters, pagination.page, pagination.limit, reloadKey]);
 
   function handleFilterChange(key, value) {
     setLoading(true);
     setFilters((prev) => ({ ...prev, [key]: value }));
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  }
+
+  function handleSort(field) {
+    setLoading(true);
+    setFilters((prev) => ({
+      ...prev,
+      sortBy: field,
+      sortOrder: prev.sortBy === field && prev.sortOrder === 'desc' ? 'asc' : 'desc',
+    }));
     setPagination((prev) => ({ ...prev, page: 1 }));
   }
 
@@ -103,25 +126,17 @@ export default function SubscriptionsPage() {
     setIsArchiving(true);
     try {
       await archiveSubscription(archiveTarget.id);
+      notify(`${archiveTarget.serviceName} archived.`, {
+        description: 'Find it under Archived; it can be restored any time.',
+      });
       setArchiveTarget(null);
-      // Reload subscriptions
-      const params = {
-        archived: activeTab === 'archived' ? 'true' : 'false',
-        limit: pagination.limit,
-        page: pagination.page,
-        sortBy: filters.sortBy,
-        sortOrder: filters.sortOrder,
-      };
-      if (filters.search) params.search = filters.search;
-      if (filters.status) params.status = filters.status;
-      if (filters.categoryId) params.categoryId = filters.categoryId;
-      if (filters.billingCycle) params.billingCycle = filters.billingCycle;
-
-      const data = await getSubscriptions(params);
+      const data = await getSubscriptions(queryFor(activeTab, filters, pagination));
       setSubscriptions(data.items);
       setPagination(data.pagination);
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const message = getApiErrorMessage(err);
+      setError(message);
+      notify('Could not archive the subscription.', { description: message, tone: 'error' });
     } finally {
       setIsArchiving(false);
     }
@@ -131,160 +146,318 @@ export default function SubscriptionsPage() {
     filters.search || filters.status || filters.categoryId || filters.billingCycle,
   );
 
-  // Compute total monthly equivalent spend on current page/view
-  const totalMonthlySpend = subscriptions
+  // Estimated monthly cost of the visible active/trial plans, kept per currency (never mixed).
+  const monthlyByCurrency = subscriptions
     .filter((sub) => sub.status === 'active' || sub.status === 'trial')
-    .reduce((sum, sub) => sum + calculateMonthlyEquivalent(sub.price, sub.billingCycle), 0);
+    .reduce((totals, sub) => {
+      totals[sub.currencyCode] =
+        (totals[sub.currencyCode] || 0) + calculateMonthlyEquivalent(sub.price, sub.billingCycle);
+      return totals;
+    }, {});
+  const currencyTotals = Object.entries(monthlyByCurrency);
 
   return (
-    <section className="mx-auto max-w-7xl px-5 py-12 sm:px-8 sm:py-16">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">
-            Subscription Management
-          </p>
-          <h1 className="mt-1 text-3xl font-black tracking-tight text-white sm:text-4xl">
-            My Subscriptions
-          </h1>
-          <p className="mt-1 text-sm text-slate-400">
-            Track recurring services, manage renewal timelines, and monitor monthly spending.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-300"
-            to="/subscriptions/new"
-          >
-            <span>+</span>
-            <span>Add Subscription</span>
-          </Link>
-        </div>
-      </div>
+    <div className="mx-auto w-full max-w-[1400px]">
+      <PageHeader
+        actions={
+          <PillLink icon="plus" to="/subscriptions/new" variant="ink">
+            Add Subscription
+          </PillLink>
+        }
+        description="Track recurring services, manage renewal timelines, and monitor monthly spending."
+        index={pageIndex('/subscriptions')}
+        title="My Subscriptions"
+      />
 
-      {/* Summary KPI Banner (when subscriptions exist) */}
+      {activeTab === 'active' && loading && (
+        // Same footprint as the KPI row below, so the filters don't jump when data lands.
+        <div aria-hidden="true" className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {[0, 1, 2].map((index) => (
+            <div className="neu-raised h-[10.5rem] rounded-(--radius-card) p-6" key={index}>
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="mt-4 h-12 w-2/3" />
+            </div>
+          ))}
+        </div>
+      )}
+
       {!loading && subscriptions.length > 0 && activeTab === 'active' && (
-        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Active Subscriptions
-            </span>
-            <div className="mt-2 text-2xl font-black text-white">{pagination.totalCount}</div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Est. Monthly Cost
-            </span>
-            <div className="mt-2 text-2xl font-black text-emerald-300">
-              {formatCurrency(totalMonthlySpend)}
-            </div>
-            <span className="text-xs text-slate-400">Across visible active plans</span>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Est. Annualized Run Rate
-            </span>
-            <div className="mt-2 text-2xl font-black text-white">
-              {formatCurrency(totalMonthlySpend * 12)}
-            </div>
-            <span className="text-xs text-slate-400">12-month projection</span>
-          </div>
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Card className="min-h-[10.5rem]" delay={0} look="obsidian">
+            <p className="text-sm font-bold text-soft">Active Subscriptions</p>
+            <p className="display-num mt-2 text-5xl">{pagination.totalCount}</p>
+            <p className="mt-2 text-xs text-soft">Not archived, any status</p>
+          </Card>
+          <Card className="min-h-[10.5rem]" delay={0.05}>
+            <p className="text-sm font-bold text-(--graphite)">Est. Monthly Cost</p>
+            {currencyTotals.map(([code, total]) => (
+              <p className="display-num mt-2 text-4xl" key={code}>
+                {formatCurrency(total, code)}
+              </p>
+            ))}
+            <p className="mt-2 text-xs text-(--graphite)">Across visible active plans</p>
+          </Card>
+          <Card className="min-h-[10.5rem]" delay={0.1}>
+            <p className="text-sm font-bold text-(--graphite)">Est. Annualized Run Rate</p>
+            {currencyTotals.map(([code, total]) => (
+              <p className="display-num mt-2 text-4xl" key={code}>
+                {formatCurrency(total * 12, code)}
+              </p>
+            ))}
+            <p className="mt-2 text-xs text-(--graphite)">12-month projection</p>
+          </Card>
         </div>
       )}
 
-      {/* Filters & Tabs */}
-      <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.03] p-6">
-        <SubscriptionFilters
-          activeTab={activeTab}
-          categories={categories}
-          filters={filters}
-          onFilterChange={handleFilterChange}
-          onResetFilters={handleResetFilters}
-          onTabChange={handleTabChange}
-        />
-      </div>
-
-      {/* Error Notice */}
-      {error && (
-        <div className="mt-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-300">
-          {error}
-        </div>
-      )}
-
-      {/* Subscriptions List / Table */}
-      <div className="mt-6">
-        {loading ? (
-          <div className="py-20 text-center text-sm text-slate-400">Loading subscriptions…</div>
-        ) : subscriptions.length === 0 ? (
-          <SubscriptionEmptyState
-            isArchived={activeTab === 'archived'}
-            isFiltered={isFiltered}
-            onResetFilters={handleResetFilters}
-          />
-        ) : (
-          <div className="space-y-6">
-            {/* Desktop Table View */}
-            <div className="hidden md:block">
-              <SubscriptionTable
-                onArchiveClick={(sub) => setArchiveTarget(sub)}
-                subscriptions={subscriptions}
+      <Card className="mb-6" look="glass" padded={false}>
+        <div className="space-y-4 p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Segmented
+              label="Subscription list"
+              labelHidden
+              onChange={handleTabChange}
+              options={[
+                { label: 'Active Subscriptions', value: 'active' },
+                { label: 'Archived', value: 'archived' },
+              ]}
+              value={activeTab}
+            />
+            <div className="flex items-center gap-2">
+              <span className="eyebrow hidden sm:inline">View</span>
+              <IconButton
+                aria-pressed={currentView === 'table'}
+                icon="list"
+                label="Table view"
+                onClick={() => setView('table')}
+              />
+              <IconButton
+                aria-pressed={currentView === 'cards'}
+                icon="grid"
+                label="Card view"
+                onClick={() => setView('cards')}
               />
             </div>
+          </div>
 
-            {/* Mobile Card Grid View */}
-            <div className="grid gap-4 sm:grid-cols-2 md:hidden">
-              {subscriptions.map((sub) => (
-                <SubscriptionCard key={sub.id} subscription={sub} />
-              ))}
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="well flex items-center gap-2 !py-0">
+              <Icon className="size-4 shrink-0 text-(--graphite)" name="search" />
+              <input
+                aria-label="Search subscriptions"
+                className="min-w-0 flex-1 bg-transparent py-3 outline-none"
+                name="search"
+                onChange={(e) => handleFilterChange('search', e.target.value)}
+                placeholder="Search service or plan…"
+                value={filters.search}
+              />
             </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <Field className="min-w-44" label="Category">
+                {(id) => (
+                  <Select
+                    aria-label="Filter by category"
+                    id={id}
+                    name="categoryId"
+                    onChange={(e) => handleFilterChange('categoryId', e.target.value)}
+                    value={filters.categoryId}
+                  >
+                    <option value="">All Categories</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+              <Field className="min-w-40" label="Sort by">
+                {(id) => (
+                  <Select
+                    aria-label="Sort subscriptions"
+                    id={id}
+                    name="sortBy"
+                    onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+                    value={filters.sortBy}
+                  >
+                    <option value="createdAt">Date Added</option>
+                    <option value="nextRenewalDate">Renewal Date</option>
+                    <option value="price">Price</option>
+                    <option value="serviceName">Name</option>
+                    <option value="startDate">Start Date</option>
+                  </Select>
+                )}
+              </Field>
+              <IconButton
+                icon={filters.sortOrder === 'asc' ? 'arrowUpRight' : 'chevronDown'}
+                label={`Sort order ${filters.sortOrder === 'asc' ? 'ascending' : 'descending'}`}
+                onClick={() =>
+                  handleFilterChange('sortOrder', filters.sortOrder === 'asc' ? 'desc' : 'asc')
+                }
+              />
+            </div>
+          </div>
 
-            {/* Pagination Controls */}
+          <div className="flex flex-wrap gap-x-6 gap-y-3">
+            <Segmented
+              label="Status"
+              onChange={(value) => handleFilterChange('status', value)}
+              options={[
+                { label: 'All', value: '' },
+                { label: 'Active', value: 'active' },
+                { label: 'Trial', value: 'trial' },
+                { label: 'Paused', value: 'paused' },
+                { label: 'Cancelled', value: 'cancelled' },
+              ]}
+              size="sm"
+              value={filters.status}
+            />
+            <Segmented
+              label="Billing cycle"
+              onChange={(value) => handleFilterChange('billingCycle', value)}
+              options={[
+                { label: 'All', value: '' },
+                { label: 'Monthly', value: 'monthly' },
+                { label: 'Quarterly', value: 'quarterly' },
+                { label: 'Yearly', value: 'yearly' },
+              ]}
+              size="sm"
+              value={filters.billingCycle}
+            />
+          </div>
+
+          {isFiltered && (
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-(--graphite)">Active filters applied</span>
+              <Pill icon="undo" onClick={handleResetFilters} size="sm" variant="ghost">
+                Reset filters
+              </Pill>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {error && (
+        <div className="mb-6">
+          <InlineError message={error} onRetry={() => setReloadKey((key) => key + 1)} />
+        </div>
+      )}
+
+      <div aria-live="polite">
+        {loading ? (
+          <Card>
+            <CardSkeleton label="subscriptions" lines={4} />
+          </Card>
+        ) : subscriptions.length === 0 ? (
+          <Card>
+            {isFiltered ? (
+              <EmptyState
+                action={
+                  <Pill icon="undo" onClick={handleResetFilters}>
+                    Clear filters
+                  </Pill>
+                }
+                title="No matching subscriptions"
+              >
+                Try adjusting or clearing your search filters to find what you are looking for.
+              </EmptyState>
+            ) : activeTab === 'archived' ? (
+              <EmptyState title="No archived subscriptions">
+                Archived subscriptions will appear here. Archiving lets you hide inactive
+                subscriptions without losing your records.
+              </EmptyState>
+            ) : (
+              <EmptyState
+                action={
+                  <PillLink icon="plus" to="/subscriptions/new" variant="ink">
+                    Add your first subscription
+                  </PillLink>
+                }
+                title="No subscriptions tracked yet"
+              >
+                Start tracking your recurring services, renewal dates, and monthly costs in one
+                place.
+              </EmptyState>
+            )}
+          </Card>
+        ) : (
+          <div className="space-y-6">
+            {currentView === 'table' ? (
+              <SubscriptionTable
+                onArchiveClick={setArchiveTarget}
+                onSort={handleSort}
+                sortBy={filters.sortBy}
+                sortOrder={filters.sortOrder}
+                subscriptions={subscriptions}
+              />
+            ) : (
+              <ul className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                <AnimatePresence initial={false}>
+                  {subscriptions.map((sub) => (
+                    <li key={sub.id}>
+                      <SubscriptionCard onArchiveClick={setArchiveTarget} subscription={sub} />
+                    </li>
+                  ))}
+                </AnimatePresence>
+              </ul>
+            )}
+
             {pagination.totalPages > 1 && (
-              <div className="flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-4 sm:flex-row">
-                <p className="text-xs text-slate-400">
-                  Showing page <strong className="text-white">{pagination.page}</strong> of{' '}
-                  <strong className="text-white">{pagination.totalPages}</strong> (
+              <nav
+                aria-label="Subscription pages"
+                className="flex flex-col items-center justify-between gap-4 sm:flex-row"
+              >
+                <p className="text-sm text-(--graphite)">
+                  Showing page <strong className="text-(--ink)">{pagination.page}</strong> of{' '}
+                  <strong className="text-(--ink)">{pagination.totalPages}</strong> (
                   {pagination.totalCount} total)
                 </p>
                 <div className="flex items-center gap-2">
-                  <button
-                    className="rounded-xl border border-white/15 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/5 disabled:opacity-40"
+                  <Pill
                     disabled={pagination.page <= 1}
+                    icon="chevronLeft"
                     onClick={() =>
                       setPagination((prev) => ({ ...prev, page: Math.max(1, prev.page - 1) }))
                     }
-                    type="button"
+                    size="sm"
                   >
                     Previous
-                  </button>
-                  <button
-                    className="rounded-xl border border-white/15 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/5 disabled:opacity-40"
+                  </Pill>
+                  <Pill
                     disabled={pagination.page >= pagination.totalPages}
+                    iconRight="chevronRight"
                     onClick={() =>
                       setPagination((prev) => ({
                         ...prev,
                         page: Math.min(pagination.totalPages, prev.page + 1),
                       }))
                     }
-                    type="button"
+                    size="sm"
                   >
                     Next
-                  </button>
+                  </Pill>
                 </div>
-              </div>
+              </nav>
             )}
           </div>
         )}
       </div>
 
-      {/* Archive Modal */}
-      <ConfirmArchiveModal
-        isOpen={Boolean(archiveTarget)}
-        isSubmitting={isArchiving}
-        onClose={() => setArchiveTarget(null)}
+      <ConfirmDialog
+        busy={isArchiving}
+        busyLabel="Archiving…"
+        confirmLabel="Archive Subscription"
+        description={
+          archiveTarget
+            ? `${archiveTarget.serviceName} moves to your archived list. It stops counting toward recurring costs and renewal reminders. Its payment history is kept, and you can restore it at any time.`
+            : ''
+        }
         onConfirm={handleConfirmArchive}
-        subscription={archiveTarget}
+        onOpenChange={(open) => {
+          if (!open) setArchiveTarget(null);
+        }}
+        open={Boolean(archiveTarget)}
+        title={archiveTarget ? `Archive ${archiveTarget.serviceName}?` : 'Archive subscription?'}
       />
-    </section>
+    </div>
   );
 }

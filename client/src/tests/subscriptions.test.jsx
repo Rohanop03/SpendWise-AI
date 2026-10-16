@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -112,10 +112,22 @@ describe('frontend subscription management', () => {
 
     renderApp('/subscriptions');
 
+    const user = userEvent.setup();
     expect(await screen.findByRole('heading', { name: 'My Subscriptions' })).toBeInTheDocument();
-    expect(await screen.findAllByText('Netflix')).toHaveLength(2); // once in table, once in mobile card
+    // Table view (default on wide screens): one row with the service link.
+    const table = await screen.findByRole('table');
+    expect(within(table).getByRole('link', { name: 'Netflix' })).toHaveAttribute(
+      'href',
+      '/subscriptions/101',
+    );
     expect(screen.getByText('Est. Monthly Cost')).toBeInTheDocument();
-    expect(screen.getAllByText('$22.99')).toHaveLength(3); // in KPI, table, and mobile card
+    expect(screen.getAllByText('$22.99')).toHaveLength(2); // in KPI and table
+
+    // Card view shows the same subscription as a card.
+    await user.click(screen.getByRole('button', { name: 'Card view' }));
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Netflix' })).toBeInTheDocument();
+    expect(screen.getAllByText('$22.99')).toHaveLength(2); // in KPI and card
   });
 
   it('filters subscriptions and switches to archived tab', async () => {
@@ -168,7 +180,7 @@ describe('frontend subscription management', () => {
       await screen.findByRole('heading', { name: 'Add New Subscription' }),
     ).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText('Plan / Tier (Optional)'), 'Family 4K');
+    await user.type(await screen.findByLabelText('Plan / Tier (Optional)'), 'Family 4K');
     await user.type(screen.getByLabelText('Price'), '19.99');
     await user.type(screen.getByLabelText('Next Renewal'), '2026-11-20');
 
@@ -207,7 +219,7 @@ describe('frontend subscription management', () => {
     ).toBeInTheDocument();
 
     // Toggle to custom service mode
-    await user.click(screen.getByRole('button', { name: 'Custom Service' }));
+    await user.click(await screen.findByRole('button', { name: 'Custom Service' }));
 
     await user.type(screen.getByLabelText('Custom Service Name'), 'Campus Recreation Gym');
     await user.type(screen.getByLabelText('Price'), '50.00');
@@ -277,7 +289,7 @@ describe('frontend subscription management', () => {
 
     expect(await screen.findByRole('heading', { name: 'Edit Subscription' })).toBeInTheDocument();
 
-    const priceInput = screen.getByLabelText('Price');
+    const priceInput = await screen.findByLabelText('Price');
     expect(priceInput).toHaveValue(22.99);
 
     await user.clear(priceInput);

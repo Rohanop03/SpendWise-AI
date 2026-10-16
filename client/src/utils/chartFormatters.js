@@ -12,7 +12,7 @@ export function formatCompactCurrency(value, currencyCode) {
   if (!Number.isFinite(numeric)) return '';
 
   try {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-IN', {
       currency: currencyCode,
       maximumFractionDigits: 1,
       notation: 'compact',

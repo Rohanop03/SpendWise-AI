@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from 'framer-motion';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -8,6 +9,15 @@ import {
   markNotificationRead,
   notifyNotificationStateChanged,
 } from '../api/notifications.js';
+import { pageIndex } from '../layout/nav.js';
+import { CardSkeleton, EmptyState } from '../ui/Feedback.jsx';
+import Icon from '../ui/Icon.jsx';
+import { PageHeader } from '../ui/Page.jsx';
+import { Pill } from '../ui/Pill.jsx';
+import Segmented from '../ui/Segmented.jsx';
+import { StateDot } from '../ui/Status.jsx';
+import { Card } from '../ui/Surface.jsx';
+import { formatDate } from '../utils/dates.js';
 
 const pageSize = 10;
 
@@ -80,137 +90,138 @@ export default function NotificationsPage() {
   }
 
   return (
-    <section className="mx-auto max-w-5xl px-5 py-12 sm:px-8 sm:py-16">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">
-            Reminder history
-          </p>
-          <h1 className="mt-2 text-4xl font-black tracking-tight text-white">
-            Notification Center
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-            Renewal and trial reminders generated from your saved preferences.
-          </p>
-        </div>
-        <button
-          className="rounded-xl border border-white/15 px-4 py-2.5 text-sm font-bold text-slate-200 hover:border-emerald-300/50"
-          onClick={markAllRead}
-          type="button"
-        >
-          Mark all as read
-        </button>
-      </div>
+    <div className="mx-auto w-full max-w-5xl">
+      <PageHeader
+        actions={
+          <Pill icon="check" onClick={markAllRead}>
+            Mark all as read
+          </Pill>
+        }
+        description="Renewal and trial reminders generated from your saved preferences."
+        index={pageIndex('/notifications')}
+        title="Notification Center"
+      />
 
-      <div className="mt-7 flex gap-2" role="group" aria-label="Notification filter">
-        {['all', 'unread'].map((value) => (
-          <button
-            aria-pressed={filter === value}
-            className={`rounded-full px-4 py-2 text-sm font-bold ${filter === value ? 'bg-emerald-300 text-slate-950' : 'bg-white/5 text-slate-300'}`}
-            key={value}
-            onClick={() => setFilter(value)}
-            type="button"
-          >
-            {value === 'all' ? 'All' : 'Unread'}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        className="mb-6"
+        label="Notification filter"
+        labelHidden
+        onChange={setFilter}
+        options={[
+          { label: 'All', value: 'all' },
+          { label: 'Unread', value: 'unread' },
+        ]}
+        value={filter}
+      />
 
       {state.error && (
         <div
-          className="mt-6 rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm text-rose-100"
+          className="obsidian mb-6 flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between"
           role="alert"
         >
-          <p>{state.error}</p>
-          <button
-            className="mt-2 font-bold underline"
-            onClick={() => load(state.page)}
-            type="button"
-          >
+          <p className="flex items-start gap-2 text-sm font-bold">
+            <Icon className="mt-0.5 size-5 shrink-0" name="alert" />
+            {state.error}
+          </p>
+          <Pill icon="refresh" onClick={() => load(state.page)} size="sm" variant="paper">
             Retry
-          </button>
+          </Pill>
         </div>
       )}
+
       {state.loading ? (
-        <p className="mt-8 text-sm text-slate-300" role="status">
-          Loading notifications…
-        </p>
+        <Card>
+          <CardSkeleton label="notifications" lines={3} />
+        </Card>
       ) : state.notifications.length === 0 ? (
-        <div className="mt-8 rounded-3xl border border-dashed border-white/10 p-10 text-center text-slate-400">
-          No reminders yet. We&apos;ll display upcoming subscription reminders here when
-          they&apos;re due.
-        </div>
+        <Card>
+          <EmptyState title="All caught up">
+            No reminders yet. We&apos;ll display upcoming subscription reminders here when
+            they&apos;re due.
+          </EmptyState>
+        </Card>
       ) : (
-        <div className="mt-6 space-y-3">
-          {state.notifications.map((notification) => (
-            <article
-              className={`rounded-2xl border p-5 ${notification.isRead ? 'border-white/10 bg-white/[0.035]' : 'border-emerald-300/25 bg-emerald-300/[0.07]'}`}
-              key={notification.id}
-            >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    {!notification.isRead && (
-                      <span className="rounded-full bg-emerald-300 px-2 py-0.5 text-xs font-black text-slate-950">
-                        Unread
-                      </span>
+        <ul className="space-y-3">
+          <AnimatePresence initial={false}>
+            {state.notifications.map((notification) => (
+              <motion.li
+                animate={{ opacity: 1, y: 0 }}
+                className={`rounded-[1.4rem] p-5 ${notification.isRead ? 'neu-pressed depth-1' : 'neu-raised'}`}
+                initial={{ opacity: 0, y: 8 }}
+                key={notification.id}
+                layout
+              >
+                <article className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {!notification.isRead && (
+                        <span className="pill-ink inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold leading-none">
+                          <StateDot className="size-2" kind="solid" />
+                          Unread
+                        </span>
+                      )}
+                      <h2 className={`text-base ${notification.isRead ? 'font-normal' : ''}`}>
+                        {notification.title}
+                      </h2>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-(--graphite)">
+                      {notification.message}
+                    </p>
+                    <time
+                      className="num mt-2 block text-xs text-(--graphite)"
+                      dateTime={notification.createdAt}
+                    >
+                      {formatDate(notification.createdAt, 'D MMM YYYY, HH:mm')}
+                    </time>
+                    {notification.subscriptionId && (
+                      <Link
+                        className="mt-3 inline-flex min-h-11 items-center text-sm font-bold underline underline-offset-4"
+                        to={`/subscriptions/${notification.subscriptionId}`}
+                      >
+                        View subscription →
+                      </Link>
                     )}
-                    <h2 className="font-bold text-white">{notification.title}</h2>
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">{notification.message}</p>
-                  <time
-                    className="mt-2 block text-xs text-slate-500"
-                    dateTime={notification.createdAt}
-                  >
-                    {new Date(notification.createdAt).toLocaleString()}
-                  </time>
-                </div>
-                {!notification.isRead && (
-                  <button
-                    className="shrink-0 text-sm font-bold text-emerald-300"
-                    onClick={() => markRead(notification)}
-                    type="button"
-                  >
-                    Mark as read
-                  </button>
-                )}
-              </div>
-              {notification.subscriptionId && (
-                <Link
-                  className="mt-4 inline-flex text-sm font-bold text-emerald-300"
-                  to={`/subscriptions/${notification.subscriptionId}`}
-                >
-                  View subscription →
-                </Link>
-              )}
-            </article>
-          ))}
-        </div>
+                  {!notification.isRead && (
+                    <Pill
+                      className="shrink-0"
+                      icon="check"
+                      onClick={() => markRead(notification)}
+                      size="sm"
+                    >
+                      Mark as read
+                    </Pill>
+                  )}
+                </article>
+              </motion.li>
+            ))}
+          </AnimatePresence>
+        </ul>
       )}
 
       {state.pages > 1 && (
         <nav aria-label="Notification pages" className="mt-6 flex items-center justify-between">
-          <button
-            className="rounded-lg border border-white/10 px-3 py-2 text-sm disabled:opacity-40"
+          <Pill
             disabled={state.page <= 1}
+            icon="chevronLeft"
             onClick={() => load(state.page - 1)}
-            type="button"
+            size="sm"
           >
             Previous
-          </button>
-          <span className="text-sm text-slate-400">
+          </Pill>
+          <span className="text-sm text-(--graphite)">
             Page {state.page} of {state.pages}
           </span>
-          <button
-            className="rounded-lg border border-white/10 px-3 py-2 text-sm disabled:opacity-40"
+          <Pill
             disabled={state.page >= state.pages}
+            iconRight="chevronRight"
             onClick={() => load(state.page + 1)}
-            type="button"
+            size="sm"
           >
             Next
-          </button>
+          </Pill>
         </nav>
       )}
-    </section>
+    </div>
   );
 }

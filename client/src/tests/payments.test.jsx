@@ -398,7 +398,11 @@ describe('frontend payment tracking and billing management', () => {
       screen.getByText('Renewal date passed — payment status unconfirmed'),
     ).toBeInTheDocument();
 
-    // Check upcoming renewals
-    expect(screen.getByText('Netflix')).toBeInTheDocument();
+    // Check upcoming renewals (shown on the timeline track and in the renewal stack)
+    expect(screen.getAllByText('Netflix').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('link', { name: 'Record payment for Netflix' })).toHaveAttribute(
+      'href',
+      '/payments/new?subscriptionId=1',
+    );
   });
 });

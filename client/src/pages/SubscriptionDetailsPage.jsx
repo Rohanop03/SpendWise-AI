@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 
 import { getApiErrorMessage } from '../api/http.js';
 import {
@@ -8,19 +8,36 @@ import {
   restoreSubscription,
   updateSubscription,
 } from '../api/subscriptions.js';
-import ConfirmArchiveModal from '../components/subscriptions/ConfirmArchiveModal.jsx';
-import SubscriptionStatusBadge from '../components/subscriptions/SubscriptionStatusBadge.jsx';
+import { pageIndex } from '../layout/nav.js';
+import { ConfirmDialog } from '../ui/Dialog.jsx';
+import { CardSkeleton, EmptyState, InlineError } from '../ui/Feedback.jsx';
+import FlipDate from '../ui/FlipDate.jsx';
+import Icon from '../ui/Icon.jsx';
+import { PageHeader } from '../ui/Page.jsx';
+import { BackLink, Pill, PillLink } from '../ui/Pill.jsx';
+import { SubscriptionStatusChip, Tag } from '../ui/Status.jsx';
+import { Card, CardHeader } from '../ui/Surface.jsx';
+import { useToast } from '../ui/toastContext.js';
 import { calculateMonthlyEquivalent, formatCurrency, getBillingCycleLabel } from '../utils/cost.js';
+import { daysUntil, formatDate, relativeDays } from '../utils/dates.js';
+
+function Row({ children, label }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 border-b border-(--hairline) py-3 last:border-0">
+      <dt className="text-sm text-(--graphite)">{label}</dt>
+      <dd className="text-right text-sm font-bold">{children}</dd>
+    </div>
+  );
+}
 
 export default function SubscriptionDetailsPage() {
   const { id } = useParams();
-
+  const { notify } = useToast();
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
-  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+  const [confirm, setConfirm] = useState(null); // 'archive' | 'cancel' | null
 
   useEffect(() => {
     getSubscription(id)
@@ -32,21 +49,19 @@ export default function SubscriptionDetailsPage() {
   async function handleStatusChange(newStatus) {
     if (!subscription) return;
     setActionLoading(true);
-    setNotice('');
     setError('');
-
     try {
       const updates = { status: newStatus };
       if (newStatus === 'active' && !subscription.nextRenewalDate) {
-        // default to 1 month from now if reactivating without a renewal date
+        // Same rule as before: default to one month from today when reactivating without a date.
         const nextMonth = new Date();
         nextMonth.setMonth(nextMonth.getMonth() + 1);
         updates.nextRenewalDate = nextMonth.toISOString().split('T')[0];
       }
-
       const updated = await updateSubscription(subscription.id, updates);
       setSubscription(updated);
-      setNotice(`Subscription status updated to ${newStatus}.`);
+      setConfirm(null);
+      notify(`Subscription status updated to ${newStatus}.`);
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -60,8 +75,8 @@ export default function SubscriptionDetailsPage() {
     try {
       const updated = await archiveSubscription(subscription.id);
       setSubscription(updated);
-      setIsArchiveModalOpen(false);
-      setNotice('Subscription has been archived.');
+      setConfirm(null);
+      notify('Subscription has been archived.');
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -72,12 +87,11 @@ export default function SubscriptionDetailsPage() {
   async function handleRestore() {
     if (!subscription) return;
     setActionLoading(true);
-    setNotice('');
     setError('');
     try {
       const updated = await restoreSubscription(subscription.id);
       setSubscription(updated);
-      setNotice('Subscription has been restored to active list.');
+      notify('Subscription has been restored to active list.');
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -86,300 +100,241 @@ export default function SubscriptionDetailsPage() {
   }
 
   if (loading) {
-    return <p className="px-5 py-24 text-center text-slate-300">Loading subscription details…</p>;
-  }
-
-  if (error && !subscription) {
     return (
-      <div className="mx-auto max-w-2xl px-5 py-20 text-center">
-        <h2 className="text-2xl font-bold text-white">Subscription not found</h2>
-        <p className="mt-2 text-sm text-slate-400">{error}</p>
-        <div className="mt-6">
-          <Link
-            className="rounded-full bg-emerald-400 px-5 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-300"
-            to="/subscriptions"
-          >
-            Back to Subscriptions
-          </Link>
-        </div>
+      <div className="neu-raised mx-auto max-w-4xl rounded-(--radius-card) p-6">
+        <CardSkeleton label="subscription details" lines={3} tall />
       </div>
     );
   }
 
+  if (error && !subscription) {
+    return (
+      <Card className="mx-auto max-w-xl">
+        <EmptyState
+          action={
+            <PillLink to="/subscriptions" variant="ink">
+              Back to Subscriptions
+            </PillLink>
+          }
+          title="Subscription not found"
+          titleAs="h1"
+        >
+          {error}
+        </EmptyState>
+      </Card>
+    );
+  }
+
   const monthlyCost = calculateMonthlyEquivalent(subscription.price, subscription.billingCycle);
+  const archived = Boolean(subscription.archivedAt);
+  const renewalDays = daysUntil(subscription.nextRenewalDate);
 
   return (
-    <section className="mx-auto max-w-4xl px-5 py-12 sm:px-8 sm:py-16">
-      {/* Navigation Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <Link
-            className="text-xs font-semibold text-slate-400 transition hover:text-emerald-300"
-            to="/subscriptions"
-          >
-            ← Back to Subscriptions
-          </Link>
-          <div className="mt-2 flex items-center gap-3">
-            <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
-              {subscription.serviceName}
-            </h1>
-            {subscription.serviceWebsiteUrl && (
-              <a
-                aria-label={`Open ${subscription.serviceName} website`}
-                className="rounded-lg border border-white/10 bg-white/5 p-1.5 text-slate-400 hover:text-emerald-300"
-                href={subscription.serviceWebsiteUrl}
-                rel="noopener noreferrer"
-                target="_blank"
+    <div className="mx-auto w-full max-w-6xl">
+      <BackLink to="/subscriptions">Back to Subscriptions</BackLink>
+      <PageHeader
+        actions={
+          <>
+            {!archived && (
+              <PillLink
+                icon="receipt"
+                to={`/payments/new?subscriptionId=${subscription.id}`}
+                variant="ink"
               >
-                <svg
-                  aria-hidden="true"
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6m4-3h6v6m-11 5L21 3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </a>
+                Record Payment
+              </PillLink>
             )}
-            <SubscriptionStatusBadge
-              archivedAt={subscription.archivedAt}
-              status={subscription.status}
-            />
-          </div>
+            {!archived && (
+              <PillLink icon="edit" to={`/subscriptions/${subscription.id}/edit`}>
+                Edit Details
+              </PillLink>
+            )}
+          </>
+        }
+        index={pageIndex('/subscriptions')}
+        title={subscription.serviceName}
+      >
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <SubscriptionStatusChip
+            archivedAt={subscription.archivedAt}
+            status={subscription.status}
+          />
           {subscription.planName && (
-            <p className="mt-1 text-base text-slate-300">{subscription.planName}</p>
+            <span className="text-(--graphite)">{subscription.planName}</span>
+          )}
+          {subscription.serviceWebsiteUrl && (
+            <a
+              aria-label={`Open ${subscription.serviceName} website`}
+              className="pill pill-ghost pill-sm"
+              href={subscription.serviceWebsiteUrl}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              Website <Icon className="size-4" name="arrowUpRight" />
+            </a>
           )}
         </div>
+      </PageHeader>
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
-          {!subscription.archivedAt && (
-            <Link
-              className="rounded-xl bg-emerald-400 px-4 py-2 text-xs font-bold text-slate-950 transition hover:bg-emerald-300"
-              to={`/payments/new?subscriptionId=${subscription.id}`}
-            >
-              Record Payment
-            </Link>
-          )}
-          {!subscription.archivedAt && (
-            <Link
-              className="rounded-xl border border-white/15 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/5"
-              to={`/subscriptions/${subscription.id}/edit`}
-            >
-              Edit Details
-            </Link>
-          )}
-
-          {/* Status Quick-Actions */}
-          {!subscription.archivedAt && (
-            <>
-              {subscription.status === 'active' && (
-                <>
-                  <button
-                    className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-300 transition hover:bg-amber-500/20 disabled:opacity-50"
-                    disabled={actionLoading}
-                    onClick={() => handleStatusChange('paused')}
-                    type="button"
-                  >
-                    Pause
-                  </button>
-                  <button
-                    className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50"
-                    disabled={actionLoading}
-                    onClick={() => handleStatusChange('cancelled')}
-                    type="button"
-                  >
-                    Mark Cancelled
-                  </button>
-                </>
-              )}
-              {subscription.status === 'paused' && (
-                <button
-                  className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-50"
-                  disabled={actionLoading}
-                  onClick={() => handleStatusChange('active')}
-                  type="button"
-                >
-                  Reactivate
-                </button>
-              )}
-              {subscription.status === 'cancelled' && (
-                <button
-                  className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-50"
-                  disabled={actionLoading}
-                  onClick={() => handleStatusChange('active')}
-                  type="button"
-                >
-                  Reactivate
-                </button>
-              )}
-            </>
-          )}
-
-          {/* Archival Actions */}
-          {!subscription.archivedAt ? (
-            <button
-              className="rounded-xl border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-slate-400 transition hover:border-slate-600 hover:text-white"
-              onClick={() => setIsArchiveModalOpen(true)}
-              type="button"
-            >
-              Archive
-            </button>
-          ) : (
-            <button
-              className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-50"
-              disabled={actionLoading}
-              onClick={handleRestore}
-              type="button"
-            >
-              Restore Subscription
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Notices & Errors */}
-      {notice && (
-        <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-300">
-          {notice}
-        </div>
-      )}
       {error && (
-        <div className="mt-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-300">
-          {error}
+        <div className="mb-6">
+          <InlineError message={error} />
         </div>
       )}
 
-      {/* Detail Cards Grid */}
-      <div className="mt-8 grid gap-6 md:grid-cols-2">
-        {/* Cost & Cycle Card */}
-        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">
-            Cost & Billing
-          </h2>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-4xl font-black text-white">
+      <div className="grid gap-6 lg:grid-cols-12">
+        <Card className="lg:col-span-5" look="obsidian">
+          <p className="eyebrow !text-(--on-ink-soft)">Cost & Billing</p>
+          <p className="mt-4 flex flex-wrap items-baseline gap-2">
+            <span className="display-num text-[clamp(2.6rem,2rem+2vw,3.6rem)]">
               {formatCurrency(subscription.price, subscription.currencyCode)}
             </span>
-            <span className="text-sm font-semibold text-slate-400">
+            <span className="text-sm font-bold text-soft">
               / {getBillingCycleLabel(subscription.billingCycle).toLowerCase()}
             </span>
-          </div>
-
-          <div className="mt-6 space-y-3 border-t border-white/5 pt-4 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-400">Monthly Equivalent</span>
-              <span className="font-semibold text-emerald-300">
+          </p>
+          <dl className="mt-6 space-y-2 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-soft">Monthly Equivalent</dt>
+              <dd className="num">
                 ~{formatCurrency(monthlyCost, subscription.currencyCode)} / month
-              </span>
+              </dd>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Annual Run Rate</span>
-              <span className="font-semibold text-white">
+            <div className="flex justify-between gap-4">
+              <dt className="text-soft">Annual Run Rate</dt>
+              <dd className="num">
                 ~{formatCurrency(monthlyCost * 12, subscription.currencyCode)} / year
-              </span>
+              </dd>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Billing Currency</span>
-              <span className="font-semibold text-white">{subscription.currencyCode}</span>
+            <div className="flex justify-between gap-4">
+              <dt className="text-soft">Billing Currency</dt>
+              <dd className="num">{subscription.currencyCode}</dd>
             </div>
-          </div>
-        </div>
+          </dl>
+        </Card>
 
-        {/* Schedule & Renewal Card */}
-        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">
-            Timeline & Dates
-          </h2>
-          <div className="mt-4 space-y-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-400">Start Date</span>
-              <span className="font-semibold text-white">{subscription.startDate}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Next Renewal Date</span>
-              <span className="font-semibold text-emerald-300">
-                {subscription.nextRenewalDate || 'None'}
-              </span>
-            </div>
+        <Card className="lg:col-span-7" delay={0.05}>
+          <CardHeader title="Timeline & Dates" />
+          <dl>
+            <Row label="Start Date">
+              <span className="num">{formatDate(subscription.startDate)}</span>
+            </Row>
+            <Row label="Next Renewal Date">
+              <FlipDate value={subscription.nextRenewalDate} />
+              {renewalDays !== null &&
+                ['active', 'trial'].includes(subscription.status) &&
+                !archived && (
+                  <span className="block text-xs font-normal text-(--graphite)">
+                    {renewalDays < 0
+                      ? `passed ${Math.abs(renewalDays)} days ago`
+                      : relativeDays(renewalDays)}
+                  </span>
+                )}
+            </Row>
             {subscription.trialEndDate && (
-              <div className="flex justify-between">
-                <span className="text-slate-400">Trial End Date</span>
-                <span className="font-semibold text-cyan-300">{subscription.trialEndDate}</span>
-              </div>
+              <Row label="Trial End Date">
+                <span className="num">{formatDate(subscription.trialEndDate)}</span>
+              </Row>
             )}
             {subscription.cancelledAt && (
-              <div className="flex justify-between">
-                <span className="text-slate-400">Cancelled At</span>
-                <span className="font-semibold text-rose-300">
-                  {new Date(subscription.cancelledAt).toLocaleDateString()}
-                </span>
-              </div>
+              <Row label="Cancelled At">
+                {new Date(subscription.cancelledAt).toLocaleDateString()}
+              </Row>
             )}
             {subscription.archivedAt && (
-              <div className="flex justify-between">
-                <span className="text-slate-400">Archived At</span>
-                <span className="font-semibold text-slate-400">
-                  {new Date(subscription.archivedAt).toLocaleDateString()}
-                </span>
-              </div>
+              <Row label="Archived At">
+                {new Date(subscription.archivedAt).toLocaleDateString()}
+              </Row>
             )}
-          </div>
-        </div>
+          </dl>
+        </Card>
 
-        {/* Metadata & Service Source Card */}
-        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">
-            Categorization
-          </h2>
-          <div className="mt-4 space-y-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-400">Category</span>
-              <span className="font-semibold text-white">
-                {subscription.categoryName || 'Uncategorized'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Catalog Source</span>
-              <span className="font-semibold text-white">
-                {subscription.serviceId ? 'Catalog Service' : 'Custom Service'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Created At</span>
-              <span className="text-slate-300">
-                {new Date(subscription.createdAt).toLocaleDateString()}
-              </span>
-            </div>
-          </div>
-        </div>
+        <Card className="lg:col-span-5" delay={0.1}>
+          <CardHeader title="Categorization" />
+          <dl>
+            <Row label="Category">
+              <Tag>{subscription.categoryName || 'Uncategorized'}</Tag>
+            </Row>
+            <Row label="Catalog Source">
+              {subscription.serviceId ? 'Catalog Service' : 'Custom Service'}
+            </Row>
+            <Row label="Created At">{new Date(subscription.createdAt).toLocaleDateString()}</Row>
+          </dl>
+        </Card>
 
-        {/* Notes Card */}
-        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">Notes</h2>
-          <div className="mt-4 text-sm text-slate-300">
-            {subscription.notes ? (
-              <p className="whitespace-pre-wrap">{subscription.notes}</p>
+        <Card className="lg:col-span-7" delay={0.15}>
+          <CardHeader title="Notes" />
+          {subscription.notes ? (
+            <p className="whitespace-pre-wrap text-sm leading-6">{subscription.notes}</p>
+          ) : (
+            <p className="text-sm text-(--graphite)">No notes recorded for this subscription.</p>
+          )}
+        </Card>
+
+        <Card className="lg:col-span-12" delay={0.1} look="pressed">
+          <CardHeader
+            description="Status changes and archiving only change this record in SpendWise. They never cancel the service with the provider."
+            title="Manage this subscription"
+          />
+          <div className="flex flex-wrap gap-3">
+            {!archived && subscription.status === 'active' && (
+              <>
+                <Pill
+                  disabled={actionLoading}
+                  icon="pause"
+                  onClick={() => handleStatusChange('paused')}
+                >
+                  Pause
+                </Pill>
+                <Pill disabled={actionLoading} icon="close" onClick={() => setConfirm('cancel')}>
+                  Mark Cancelled
+                </Pill>
+              </>
+            )}
+            {!archived &&
+              (subscription.status === 'paused' || subscription.status === 'cancelled') && (
+                <Pill
+                  disabled={actionLoading}
+                  icon="play"
+                  onClick={() => handleStatusChange('active')}
+                  variant="ink"
+                >
+                  Reactivate
+                </Pill>
+              )}
+            {!archived ? (
+              <Pill icon="stack" onClick={() => setConfirm('archive')} variant="outline">
+                Archive
+              </Pill>
             ) : (
-              <p className="italic text-slate-500">No notes recorded for this subscription.</p>
+              <Pill disabled={actionLoading} icon="undo" onClick={handleRestore} variant="ink">
+                Restore Subscription
+              </Pill>
             )}
           </div>
-        </div>
+        </Card>
       </div>
 
-      <ConfirmArchiveModal
-        isOpen={isArchiveModalOpen}
-        isSubmitting={actionLoading}
-        onClose={() => setIsArchiveModalOpen(false)}
+      <ConfirmDialog
+        busy={actionLoading}
+        busyLabel="Archiving…"
+        confirmLabel="Archive Subscription"
+        description={`${subscription.serviceName} moves to your archived list. It will not appear in active spending calculations or renewal reminders, but its history stays preserved and you can restore it at any time.`}
         onConfirm={handleArchive}
-        subscription={subscription}
+        onOpenChange={(open) => setConfirm(open ? 'archive' : null)}
+        open={confirm === 'archive'}
+        title={`Archive ${subscription.serviceName}?`}
       />
-    </section>
+      <ConfirmDialog
+        busy={actionLoading}
+        busyLabel="Updating…"
+        confirmLabel="Mark as cancelled"
+        description={`${subscription.serviceName} will be marked cancelled in SpendWise and stop counting toward recurring costs and reminders. This does not cancel it with the provider — do that with them directly.`}
+        onConfirm={() => handleStatusChange('cancelled')}
+        onOpenChange={(open) => setConfirm(open ? 'cancel' : null)}
+        open={confirm === 'cancel'}
+        title={`Mark ${subscription.serviceName} as cancelled?`}
+      />
+    </div>
   );
 }

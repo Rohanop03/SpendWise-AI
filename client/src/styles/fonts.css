@@ -1,0 +1,5 @@
+/* Self-hosted, latin subset only, font-display: swap (set by @fontsource). */
+@import '@fontsource/manjari/latin-100.css';
+@import '@fontsource/manjari/latin-400.css';
+@import '@fontsource/manjari/latin-700.css';
+@import '@fontsource/jetbrains-mono/latin-400.css';

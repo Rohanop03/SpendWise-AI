@@ -28,14 +28,21 @@
     "test:e2e": "playwright test",
     "build": "npm run build --workspace client",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test:visual": "playwright test -c playwright.visual.config.js",
+    "test:regression": "playwright test e2e/regression.spec.js",
+    "screenshots": "playwright test -c playwright.visual.config.js screenshots",
+    "lhci": "lhci autorun --config=lighthouserc.cjs",
+    "preview:dist": "node client/scripts/serve-dist.mjs"
   },
   "engines": {
     "node": ">=22.13.0",
     "npm": ">=10.0.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^10.0.1",
+    "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.64.1",
     "concurrently": "^10.0.6",
     "eslint": "^10.12.0",

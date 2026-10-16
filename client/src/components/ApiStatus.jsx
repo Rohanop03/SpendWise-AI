@@ -1,23 +1,13 @@
 import { useApiHealth } from '../hooks/useApiHealth.js';
+import { StateDot } from '../ui/Status.jsx';
 
 const statusStyles = {
-  checking: {
-    dot: 'bg-amber-300',
-    panel: 'border-amber-300/25 bg-amber-300/10 text-amber-100',
-    title: 'Checking connection',
-  },
-  connected: {
-    dot: 'bg-emerald-300',
-    panel: 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100',
-    title: 'API online',
-  },
-  unavailable: {
-    dot: 'bg-rose-300',
-    panel: 'border-rose-300/25 bg-rose-300/10 text-rose-100',
-    title: 'API unavailable',
-  },
+  checking: { dot: 'half', title: 'Checking connection' },
+  connected: { dot: 'solid', title: 'API online' },
+  unavailable: { dot: 'cross', title: 'API unavailable' },
 };
 
+/** Backend connectivity chip (GET /health). State is shown by glyph + label, never colour. */
 function ApiStatus() {
   const connection = useApiHealth();
   const styles = statusStyles[connection.state];
@@ -25,13 +15,13 @@ function ApiStatus() {
   return (
     <div
       aria-live="polite"
-      className={`inline-flex items-center gap-3 rounded-full border px-4 py-2.5 text-sm ${styles.panel}`}
+      className="neu-pressed depth-1 inline-flex items-center gap-2.5 rounded-full px-3.5 py-2 text-sm"
       role="status"
     >
-      <span className={`size-2.5 shrink-0 rounded-full ${styles.dot}`} aria-hidden="true" />
+      <StateDot kind={styles.dot} />
       <span>
-        <span className="font-semibold">{styles.title}</span>
-        <span className="hidden text-white/65 sm:inline"> · {connection.message}</span>
+        <span className="font-bold">{styles.title}</span>
+        <span className="hidden text-(--graphite) sm:inline"> · {connection.message}</span>
       </span>
     </div>
   );

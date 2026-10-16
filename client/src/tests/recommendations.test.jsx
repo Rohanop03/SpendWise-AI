@@ -9,6 +9,7 @@ import { AuthProvider } from '../auth/AuthContext.jsx';
 const mocks = vi.hoisted(() => ({
   explainRecommendation: vi.fn(),
   generateRecommendations: vi.fn(),
+  getRecommendationSummary: vi.fn(),
   getRecommendations: vi.fn(),
   getUnreadNotificationCount: vi.fn(),
   restoreSession: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('../api/notifications.js', () => ({
 vi.mock('../api/recommendations.js', () => ({
   explainRecommendation: mocks.explainRecommendation,
   generateRecommendations: mocks.generateRecommendations,
+  getRecommendationSummary: mocks.getRecommendationSummary,
   getRecommendations: mocks.getRecommendations,
   updateRecommendation: mocks.updateRecommendation,
 }));
@@ -82,6 +84,11 @@ describe('Recommendation Center', () => {
     });
     mocks.getUnreadNotificationCount.mockResolvedValue(0);
     mocks.getRecommendations.mockResolvedValue(page());
+    mocks.getRecommendationSummary.mockResolvedValue({
+      activeCount: 1,
+      highPriorityCount: 1,
+      hypotheticalMonthlySavings: [{ amount: '6.00', currencyCode: 'USD' }],
+    });
     mocks.generateRecommendations.mockResolvedValue({ generatedCount: 1 });
     mocks.updateRecommendation.mockResolvedValue({ recommendation });
     mocks.explainRecommendation.mockResolvedValue({

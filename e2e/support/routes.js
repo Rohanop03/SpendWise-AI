@@ -1,0 +1,21 @@
+/** Every client route from the Phase 0 inventory, with fixture IDs from mockApi.js. */
+export const routes = [
+  { name: 'landing', path: '/', public: true },
+  { name: 'login', path: '/login', public: true },
+  { name: 'register', path: '/register', public: true },
+  { name: 'dashboard', path: '/dashboard' },
+  { name: 'subscriptions', path: '/subscriptions' },
+  { name: 'subscription-new', path: '/subscriptions/new' },
+  { name: 'subscription-details', path: '/subscriptions/11' },
+  { name: 'subscription-edit', path: '/subscriptions/11/edit' },
+  { name: 'payments', path: '/payments' },
+  { name: 'payment-new', path: '/payments/new' },
+  { name: 'payment-details', path: '/payments/305' },
+  { name: 'billing', path: '/billing' },
+  { name: 'analytics', path: '/analytics' },
+  { name: 'notifications', path: '/notifications' },
+  { name: 'recommendations', path: '/recommendations' },
+  { name: 'account', path: '/account' },
+  { name: 'settings', path: '/settings' },
+  { name: 'not-found', path: '/this-route-does-not-exist', public: true },
+];

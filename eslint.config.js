@@ -29,6 +29,29 @@ export default [
     },
   },
   {
+    // Build / CI tooling for the client runs in Node, not the browser.
+    files: [
+      'client/scripts/**/*.{js,mjs}',
+      'scripts/**/*.{js,cjs,mjs}',
+      'lighthouserc.cjs',
+      'playwright*.config.js',
+      'e2e/**/*.js',
+    ],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      globals: { ...globals.node, ...globals.browser },
+      parserOptions: { sourceType: 'module' },
+    },
+    rules: {
+      'no-console': 'off',
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    },
+  },
+  {
+    files: ['**/*.cjs'],
+    languageOptions: { sourceType: 'commonjs' },
+  },
+  {
     files: ['server/**/*.js', 'eslint.config.js'],
     languageOptions: {
       ecmaVersion: 'latest',

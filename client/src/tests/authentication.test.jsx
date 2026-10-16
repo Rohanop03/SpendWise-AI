@@ -64,16 +64,18 @@ describe('frontend authentication', () => {
     mocks.getUnreadNotificationCount.mockResolvedValue(0);
   });
 
-  it('toggles and persists the color theme', async () => {
-    const user = userEvent.setup();
+  // The revamp is light-theme only: a stored dark preference from the old toggle is ignored
+  // and no theme switch is rendered.
+  it('renders the light theme only and offers a skip link', async () => {
+    window.localStorage.setItem('spendwise-theme', 'dark');
     renderApp('/login');
 
-    const themeToggle = await screen.findByRole('button', { name: 'Switch to dark mode' });
-    await user.click(themeToggle);
-
-    expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
-    expect(window.localStorage.getItem('spendwise-theme')).toBe('dark');
-    expect(screen.getByRole('button', { name: 'Switch to light mode' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
+    expect(document.documentElement).not.toHaveAttribute('data-theme', 'dark');
+    expect(
+      screen.queryByRole('button', { name: /switch to (dark|light) mode/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Skip to content' })).toHaveAttribute('href', '#main');
   });
 
   it('renders login and toggles password visibility', async () => {

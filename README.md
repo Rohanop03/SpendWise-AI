@@ -27,7 +27,7 @@ All 12 development stages are fully implemented, verified, and documented:
 
 | Layer | Implemented & Verified Technologies |
 | :--- | :--- |
-| **Frontend** | React 19, Vite 8, Tailwind CSS 4, React Router 7, Axios, Recharts, Vitest, Testing Library |
+| **Frontend** | React 19, Vite 8, Tailwind CSS 4, React Router 7, Axios, Radix UI, Framer Motion, React Hook Form + Zod, TanStack Table, Recharts + D3, Day.js, Lenis, GSAP, Vitest, Testing Library |
 | **Backend** | Node.js 22 LTS, Express 5, Zod validation, bcrypt, jsonwebtoken, pg connection pool |
 | **Database** | PostgreSQL 18.6 / 16.x, raw parameterized SQL, migrations 001–005, stored functions & procedures, audit triggers, security-invoker views, covering partial index |
 | **Security** | Defensive HTTP headers (HSTS, CSP, X-Frame-Options, nosniff), HttpOnly refresh cookies, CSRF defenses, rate limiting, SQL parameterization, CSV sanitization |
@@ -109,7 +109,13 @@ Open the frontend at `http://localhost:5173` and backend health at `http://local
 | `npm run test` | Run all server tests; DB integration skips without `TEST_DATABASE_URL` |
 | `npm run format` | Format implementation, configuration, and documentation |
 | `npm run format:check` | Check formatting without modifying files |
-| `npm run build` | Build the frontend production bundle |
+| `npm run build` | Build the frontend and prerender the public routes |
+| `npm run preview:dist` | Serve `client/dist` on :5173 with production hosting rules (gzip, `200.html` fallback) |
+| `npm run test:visual` | Playwright + axe on every route and overflow checks at 12 breakpoints (fixture API, no DB) |
+| `npm run screenshots` | Capture route screenshots (`SHOT_DIR=docs/revamp/after npm run screenshots`) |
+| `npm run test:regression` | Full-stack journey + API contract check (real backend; `E2E_MOCK=1` for the fixture API) |
+| `npm run test:e2e` | All Playwright specs in `e2e/` against the running app |
+| `npm run lhci` | Lighthouse CI on the production build (see "Frontend quality checks") |
 
 `test:db` is destructive only to `spendwise_test.public` and refuses any other database name.
 
@@ -186,6 +192,74 @@ REMINDER_BATCH_SIZE=500
 ```
 
 `TEST_DATABASE_URL` is used only by integration tests. Demo seed additionally requires `NODE_ENV=development`, `ALLOW_DEMO_SEED=true`, and a connection to exactly `spendwise_dev`. Client-side `VITE_` values are public and must never contain secrets.
+
+## Frontend
+
+The client was revamped into the **Monochrome Pressure** design system: a light,
+colour-free interface where depth carries meaning — raised = available, pressed =
+committed, glass = floating information, obsidian = needs attention. See
+`REVAMP-PLAN.md` (route and API inventory, screen mapping) and `REVAMP-NOTES.md`
+(decisions, backend observations).
+
+```text
+client/src/
+├── ui/            # design-system primitives: Pill, Card, Field, Segmented, Dialog, Toast, chips, icons
+├── layout/        # console shell: rail, mobile dock, top bar, command palette
+├── viz/           # charts: cash flow (Recharts), category donut, renewal dial & timeline (D3)
+├── components/    # feature components (dashboard, subscriptions, payments, analytics)
+├── forms/         # React Hook Form rules and Zod schemas mirroring the API validation
+├── seo/           # page metadata (React 19 head hoisting) and JSON-LD
+├── pages/         # one file per route; private pages are lazy-loaded
+└── entry-server.jsx  # build-time prerender of /, /login, /register
+```
+
+### Dependencies added in the revamp
+
+| Package | Why |
+| --- | --- |
+| `radix-ui` | Accessible, unstyled Dialog, Toast, Slider and Switch primitives |
+| `framer-motion` | Press physics, layout transitions, list add/remove, route transitions |
+| `react-hook-form`, `zod`, `@hookform/resolvers` | Forms with client rules equal to the API's Zod schemas |
+| `@tanstack/react-table` | Accessible `<table>` with server-side sort and pagination |
+| `d3-scale`, `d3-shape` | Renewal dial, timeline and pattern-filled donut as SVG |
+| `dayjs` | "Renews in N days", relative and calendar dates |
+| `lenis`, `gsap` | Smooth scrolling and scroll reveals on long pages only (loaded at idle) |
+| `@fontsource/manjari`, `@fontsource/jetbrains-mono` | Self-hosted, latin-only fonts |
+| `@axe-core/playwright`, `@lhci/cli` (dev) | Accessibility and Lighthouse checks |
+
+### Frontend environment
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_API_BASE_URL` | API base, default `http://localhost:5000/api/v1` |
+| `VITE_SITE_URL` | Public origin for canonical / Open Graph URLs and `sitemap.xml`; omitted when empty |
+
+### SEO
+
+`npm run build` prerenders `/`, `/login` and `/register` into static HTML with titles,
+descriptions, canonical/OG/Twitter tags (from `VITE_SITE_URL`) and JSON-LD
+(`WebSite`, `SoftwareApplication`). It also writes `robots.txt` (private routes
+disallowed), `sitemap.xml` and `llms.txt`. Private routes are served an empty
+`200.html` shell and render `noindex, nofollow`.
+
+### Frontend quality checks
+
+```powershell
+npm run lint
+npm run test --workspace client      # Vitest unit/integration tests
+npm run test:visual                  # axe + overflow on all routes (starts Vite if needed)
+npm run test:regression              # needs `npm run dev` with a migrated database
+# Lighthouse (mobile): build, start the API, export a test account, then:
+npm run build
+$env:LHCI_EMAIL = '<test account>'; $env:LHCI_PASSWORD = '<password>'
+$env:CHROME_PATH = 'C:\Program Files\Google\Chrome\Application\chrome.exe'   # if Chrome is not auto-detected
+npm run lhci
+```
+
+Lighthouse CI asserts (median of 3 runs): public pages Performance ≥ 90 and
+Accessibility / Best Practices / SEO = 100; dashboard and subscriptions (logged in)
+Performance ≥ 85, Accessibility and Best Practices = 100; CLS < 0.05 and LCP < 2.5 s
+everywhere. Results are in `docs/verification-summary.md`.
 
 ## Database Design
 

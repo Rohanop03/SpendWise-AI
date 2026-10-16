@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 
 import {
   downloadReportCsv,
@@ -11,52 +10,84 @@ import {
   getSubscriptionAnalytics,
   getTopSubscriptions,
 } from '../api/analytics.js';
-import AnalyticsFilters from '../components/analytics/AnalyticsFilters.jsx';
-import AnalyticsOverviewCards from '../components/analytics/AnalyticsOverviewCards.jsx';
-import BillingCycleDistribution from '../components/analytics/BillingCycleDistribution.jsx';
-import CategorySpendingTable from '../components/analytics/CategorySpendingTable.jsx';
-import MonthlyTrendTable from '../components/analytics/MonthlyTrendTable.jsx';
-import PaymentStatusSummary from '../components/analytics/PaymentStatusSummary.jsx';
-import SubscriptionSpendingTable from '../components/analytics/SubscriptionSpendingTable.jsx';
-import TopSubscriptionsCard from '../components/analytics/TopSubscriptionsCard.jsx';
+import {
+  BillingCycleDistribution,
+  CategoryTable,
+  MonthlyTrendTable,
+  OverviewCards,
+  PaymentStatusSummary,
+  SubscriptionSpendingTable,
+  TopSubscriptionsCard,
+} from '../components/analytics/Reports.jsx';
+import { pageIndex } from '../layout/nav.js';
+import { CardSkeleton, EmptyState, InlineError } from '../ui/Feedback.jsx';
+import { Field, Input, Select } from '../ui/Field.jsx';
+import { PageHeader } from '../ui/Page.jsx';
+import { Pill, PillLink } from '../ui/Pill.jsx';
+import Segmented from '../ui/Segmented.jsx';
+import { Card, CardHeader } from '../ui/Surface.jsx';
+import { useToast } from '../ui/toastContext.js';
+import { useSmoothScroll } from '../ui/useSmoothScroll.js';
+import { groupByCurrency } from '../utils/chartFormatters.js';
+import { DASHBOARD_PERIODS, getPresetRange } from '../utils/dashboardFilters.js';
+import CashFlowChart from '../viz/CashFlowChart.jsx';
+import CategoryBreakdown from '../viz/CategoryBreakdown.jsx';
+
+const sections = [
+  { label: 'Financial Overview', value: 'overview' },
+  { label: 'Monthly Trends', value: 'trends' },
+  { label: 'Category Expenses', value: 'categories' },
+  { label: 'Subscription Spending', value: 'subscriptions' },
+  { label: 'Billing Cycles & Status', value: 'cycles' },
+];
+
+function SectionHeading({ description, title }) {
+  return (
+    <div className="mb-4">
+      <h2 className="text-xl">{title}</h2>
+      <p className="mt-1 text-sm text-(--graphite)">{description}</p>
+    </div>
+  );
+}
 
 function AnalyticsPage() {
+  useSmoothScroll(true);
+  const { notify } = useToast();
   const [currencyCode, setCurrencyCode] = useState('');
+  const [preset, setPreset] = useState('all_time');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [availableCurrencies, setAvailableCurrencies] = useState([]);
-
-  const [activeSection, setActiveSection] = useState('overview'); // 'overview' | 'categories' | 'subscriptions' | 'cycles'
-
-  const [overview, setOverview] = useState([]);
-  const [trends, setTrends] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [subscriptions, setSubscriptions] = useState([]);
-  const [topRecurring, setTopRecurring] = useState([]);
-  const [topHistorical, setTopHistorical] = useState([]);
-  const [billingCycles, setBillingCycles] = useState([]);
-  const [paymentStatuses, setPaymentStatuses] = useState([]);
-
+  const [activeSection, setActiveSection] = useState('overview');
+  const [data, setData] = useState({
+    billingCycles: [],
+    categories: [],
+    overview: [],
+    paymentStatuses: [],
+    subscriptions: [],
+    topHistorical: [],
+    topRecurring: [],
+    trends: [],
+  });
   const [subSortBy, setSubSortBy] = useState('grossPayments');
   const [subSortOrder, setSubSortOrder] = useState('desc');
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  function handleDateChange(newStart, newEnd) {
-    setStartDate(newStart);
-    setEndDate(newEnd);
-  }
-
-  function handleCurrencyChange(newCurrency) {
-    setCurrencyCode(newCurrency);
+  function handlePresetChange(next) {
+    setPreset(next);
+    if (next !== 'custom') {
+      const range = getPresetRange(next);
+      setStartDate(range.startDate);
+      setEndDate(range.endDate);
+    }
   }
 
   function handleSubscriptionSort(column) {
-    if (subSortBy === column) {
-      setSubSortOrder(subSortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
+    if (subSortBy === column) setSubSortOrder(subSortOrder === 'asc' ? 'desc' : 'asc');
+    else {
       setSubSortBy(column);
       setSubSortOrder('desc');
     }
@@ -70,7 +101,6 @@ function AnalyticsPage() {
         endDate: endDate || undefined,
         startDate: startDate || undefined,
       });
-
       const url = window.URL.createObjectURL(new Blob([blob], { type: 'text/csv' }));
       const link = document.createElement('a');
       link.href = url;
@@ -82,8 +112,10 @@ function AnalyticsPage() {
       link.click();
       link.parentNode.removeChild(link);
       window.URL.revokeObjectURL(url);
+      notify('CSV report downloaded.');
     } catch {
       setError('Failed to export CSV report. Please try again.');
+      notify('Failed to export CSV report.', { tone: 'error' });
     } finally {
       setExporting(false);
     }
@@ -91,17 +123,14 @@ function AnalyticsPage() {
 
   useEffect(() => {
     let isCancelled = false;
-
     async function loadAnalytics() {
       setLoading(true);
       setError(null);
-
       const params = {
         currencyCode: currencyCode || undefined,
         endDate: endDate || undefined,
         startDate: startDate || undefined,
       };
-
       try {
         const [
           overviewRes,
@@ -127,21 +156,17 @@ function AnalyticsPage() {
           getBillingCycleAnalytics({ currencyCode: currencyCode || undefined }),
           getPaymentStatusAnalytics(params),
         ]);
-
-        if (isCancelled) {
-          return;
-        }
-
-        setOverview(overviewRes.currencySummaries || []);
-        setTrends(trendsRes.trends || []);
-        setCategories(categoriesRes.categories || []);
-        setSubscriptions(subsRes.subscriptions || []);
-        setTopRecurring(topRecRes.subscriptions || []);
-        setTopHistorical(topHistRes.subscriptions || []);
-        setBillingCycles(cyclesRes.billingCycles || []);
-        setPaymentStatuses(statusRes.statuses || []);
-
-        // Populate available currencies from overview if not already selected
+        if (isCancelled) return;
+        setData({
+          billingCycles: cyclesRes.billingCycles || [],
+          categories: categoriesRes.categories || [],
+          overview: overviewRes.currencySummaries || [],
+          paymentStatuses: statusRes.statuses || [],
+          subscriptions: subsRes.subscriptions || [],
+          topHistorical: topHistRes.subscriptions || [],
+          topRecurring: topRecRes.subscriptions || [],
+          trends: trendsRes.trends || [],
+        });
         if (overviewRes.currencySummaries) {
           const codes = overviewRes.currencySummaries.map((s) => s.currencyCode);
           setAvailableCurrencies((prev) => Array.from(new Set([...prev, ...codes])).sort());
@@ -153,179 +178,198 @@ function AnalyticsPage() {
           );
         }
       } finally {
-        if (!isCancelled) {
-          setLoading(false);
-        }
+        if (!isCancelled) setLoading(false);
       }
     }
-
     loadAnalytics();
-
     return () => {
       isCancelled = true;
     };
-  }, [currencyCode, startDate, endDate, subSortBy, subSortOrder]);
+  }, [currencyCode, startDate, endDate, subSortBy, subSortOrder, reloadKey]);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-            Spending Analytics & SQL Reporting
-          </h1>
-          <p className="mt-1 text-sm text-slate-400">
-            Database-backed financial cash flow, category breakdowns, and recurring cost analysis
-          </p>
+    <div className="mx-auto w-full max-w-[1400px]">
+      <PageHeader
+        actions={
+          <>
+            <PillLink iconRight="arrowRight" to="/payments">
+              Payment History
+            </PillLink>
+            <PillLink icon="plus" to="/payments/new" variant="ink">
+              Record Payment
+            </PillLink>
+          </>
+        }
+        description="Database-backed cash flow, category breakdowns and recurring cost analysis. Every chart sits above the exact figures."
+        index={pageIndex('/analytics')}
+        title="Spending analytics"
+      />
+
+      <Card className="mb-6" look="glass">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <Segmented
+            label="Period"
+            onChange={handlePresetChange}
+            options={DASHBOARD_PERIODS.map((period) => ({ label: period.label, value: period.id }))}
+            size="sm"
+            value={preset}
+          />
+          <div className="flex flex-wrap items-end gap-3">
+            {preset === 'custom' && (
+              <>
+                <Field className="w-40" id="start-date" label="Start Date">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      type="date"
+                      value={startDate}
+                    />
+                  )}
+                </Field>
+                <Field className="w-40" id="end-date" label="End Date">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      type="date"
+                      value={endDate}
+                    />
+                  )}
+                </Field>
+              </>
+            )}
+            <Field className="min-w-40" id="analytics-currency" label="Currency">
+              {(id) => (
+                <Select
+                  id={id}
+                  onChange={(e) => setCurrencyCode(e.target.value)}
+                  value={currencyCode}
+                >
+                  <option value="">All Currencies</option>
+                  {availableCurrencies.map((code) => (
+                    <option key={code} value={code}>
+                      {code}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+            <Pill disabled={exporting} icon="download" onClick={handleExportCsv}>
+              {exporting ? 'Generating CSV…' : 'Export CSV'}
+            </Pill>
+          </div>
         </div>
+      </Card>
 
-        <div className="flex items-center gap-3">
-          <Link
-            to="/payments/new"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-400"
-          >
-            Record Payment
-          </Link>
-          <Link
-            to="/payments"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-800 hover:text-white"
-          >
-            Payment History
-          </Link>
-        </div>
-      </div>
-
-      {/* Filters Toolbar */}
-      <div className="mb-6">
-        <AnalyticsFilters
-          availableCurrencies={availableCurrencies}
-          currencyCode={currencyCode}
-          endDate={endDate}
-          onCurrencyChange={handleCurrencyChange}
-          onDateChange={handleDateChange}
-          onExportCsv={handleExportCsv}
-          startDate={startDate}
-        />
-      </div>
-
-      {/* Error Banner */}
       {error && (
-        <div className="mb-6 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-300">
-          {error}
+        <div className="mb-6">
+          <InlineError message={error} onRetry={() => setReloadKey((key) => key + 1)} />
         </div>
       )}
 
-      {/* Loading Skeleton */}
+      <Segmented
+        className="mb-6"
+        label="Report section"
+        labelHidden
+        onChange={setActiveSection}
+        options={sections}
+        value={activeSection}
+      />
+
       {loading ? (
-        <div className="space-y-6">
-          <div className="h-44 w-full animate-pulse rounded-3xl bg-slate-900/60" />
-          <div className="h-64 w-full animate-pulse rounded-3xl bg-slate-900/60" />
-        </div>
+        <Card>
+          <CardSkeleton label="spending analytics" lines={3} tall />
+        </Card>
       ) : (
-        <div className="space-y-8">
-          {/* Section Navigation Tabs */}
-          <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-3">
-            {[
-              { id: 'overview', label: 'Financial Overview' },
-              { id: 'trends', label: 'Monthly Trends' },
-              { id: 'categories', label: 'Category Expenses' },
-              { id: 'subscriptions', label: 'Subscription Spending' },
-              { id: 'cycles', label: 'Billing Cycles & Status' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveSection(tab.id)}
-                className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
-                  activeSection === tab.id
-                    ? 'bg-slate-100 text-slate-950 shadow-sm'
-                    : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Tab 1: Financial Overview */}
+        <div aria-live="polite">
           {activeSection === 'overview' && (
-            <div className="space-y-8">
-              <AnalyticsOverviewCards summaries={overview} />
-              <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-                <TopSubscriptionsCard
-                  recurringSubscriptions={topRecurring}
-                  historicalSubscriptions={topHistorical}
-                />
-                <PaymentStatusSummary statuses={paymentStatuses} />
-              </div>
-            </div>
-          )}
-
-          {/* Tab 2: Monthly Trends */}
-          {activeSection === 'trends' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-white">Monthly Cash Flow Trends</h2>
-                  <p className="text-xs text-slate-400">
-                    Realized payments on payment date minus refunds on refund date
-                  </p>
-                </div>
-              </div>
-              <MonthlyTrendTable trends={trends} />
-            </div>
-          )}
-
-          {/* Tab 3: Category Expenses */}
-          {activeSection === 'categories' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-white">Category Expense Breakdown</h2>
-                  <p className="text-xs text-slate-400">
-                    Historical completed spending grouped by subscription category
-                  </p>
-                </div>
-              </div>
-              <CategorySpendingTable categories={categories} />
-            </div>
-          )}
-
-          {/* Tab 4: Subscription Spending */}
-          {activeSection === 'subscriptions' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-white">Subscription-Wise Spending</h2>
-                  <p className="text-xs text-slate-400">
-                    Historical realized expenditure across all subscriptions (including archived)
-                  </p>
-                </div>
+              <OverviewCards summaries={data.overview} />
+              <div className="grid gap-6 lg:grid-cols-2">
+                <TopSubscriptionsCard
+                  historicalSubscriptions={data.topHistorical}
+                  recurringSubscriptions={data.topRecurring}
+                />
+                <PaymentStatusSummary statuses={data.paymentStatuses} />
               </div>
+            </div>
+          )}
+
+          {activeSection === 'trends' && (
+            <section>
+              <SectionHeading
+                description="Realized payments on payment date minus refunds on refund date"
+                title="Monthly Cash Flow Trends"
+              />
+              {data.trends.length ? (
+                <div className="space-y-6">
+                  {Object.entries(groupByCurrency(data.trends)).map(([currency, rows]) => (
+                    <Card key={currency}>
+                      <CashFlowChart currency={currency} rows={rows} withTable={false} />
+                    </Card>
+                  ))}
+                  <MonthlyTrendTable trends={data.trends} />
+                </div>
+              ) : (
+                <Card>
+                  <EmptyState title="No monthly trends">
+                    No monthly trends found for the selected period.
+                  </EmptyState>
+                </Card>
+              )}
+            </section>
+          )}
+
+          {activeSection === 'categories' && (
+            <section>
+              <SectionHeading
+                description="Historical completed spending grouped by subscription category"
+                title="Category Expense Breakdown"
+              />
+              {data.categories.length ? (
+                <div className="grid gap-6 xl:grid-cols-[22rem_1fr]">
+                  <div className="space-y-6">
+                    {Object.entries(groupByCurrency(data.categories)).map(([currency, rows]) => (
+                      <Card key={currency}>
+                        <CardHeader as="h3" title={`${currency} share of gross`} />
+                        <CategoryBreakdown currency={currency} rows={rows} showLegend={false} />
+                      </Card>
+                    ))}
+                  </div>
+                  <CategoryTable categories={data.categories} />
+                </div>
+              ) : (
+                <Card>
+                  <EmptyState title="No category spending">
+                    No category spending recorded for this period.
+                  </EmptyState>
+                </Card>
+              )}
+            </section>
+          )}
+
+          {activeSection === 'subscriptions' && (
+            <section>
+              <SectionHeading
+                description="Historical realized expenditure across all subscriptions (including archived)"
+                title="Subscription-Wise Spending"
+              />
               <SubscriptionSpendingTable
-                subscriptions={subscriptions}
+                onSort={handleSubscriptionSort}
                 sortBy={subSortBy}
                 sortOrder={subSortOrder}
-                onSort={handleSubscriptionSort}
+                subscriptions={data.subscriptions}
               />
-            </div>
+            </section>
           )}
 
-          {/* Tab 5: Billing Cycles & Status */}
           {activeSection === 'cycles' && (
-            <div className="space-y-8">
-              <BillingCycleDistribution billingCycles={billingCycles} />
-              <PaymentStatusSummary statuses={paymentStatuses} />
+            <div className="space-y-6">
+              <BillingCycleDistribution billingCycles={data.billingCycles} />
+              <PaymentStatusSummary statuses={data.paymentStatuses} />
             </div>
           )}
-        </div>
-      )}
-
-      {/* Exporting Indicator */}
-      {exporting && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-slate-900 px-4 py-3 shadow-2xl backdrop-blur">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
-          <span className="text-xs font-semibold text-white">Generating CSV export...</span>
         </div>
       )}
     </div>

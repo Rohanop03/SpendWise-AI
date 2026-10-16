@@ -37,3 +37,55 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 Desktop.ini
+subscription-manager-site-agent-prompt.md
+
+# Frontend build, prerender and test output
+.ssr/
+.next/
+out/
+.turbo/
+.vercel/
+.lighthouseci/
+test-results/
+playwright-report/
+blob-report/
+storybook-static/
+.eslintcache
+*.tsbuildinfo
+node_modules/.cache/
+.env*.local
+
+# Backend audit report and scratch tests (local only)
+BACKEND_AUDIT_CHECKLIST.md
+_audit/
+
+# Internal revamp process artefacts (planning notes, QA records, before/after screenshots)
+REVAMP-PLAN.md
+REVAMP-NOTES.md
+docs/revamp/
+docs/contrast.md
+docs/verification-summary.md
+
+# AI assistant / agent local files
+.claude/
+CLAUDE.local.md
+*-agent-prompt.md
+
+# Secrets and local credentials
+*.pem
+*.key
+*.p12
+*.pfx
+.npmrc
+.secrets/
+
+# Local databases and scratch
+.pgdata/
+*.sqlite
+*.sqlite3
+*.dump
+*.bak
+*.orig
+*.rej
+scratch/
+tmp/

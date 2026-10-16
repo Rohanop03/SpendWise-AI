@@ -289,9 +289,11 @@ describe('Stage 8 dashboard', () => {
   });
 
   it('includes responsive navigation without page-level horizontal overflow', async () => {
-    const { container } = renderDashboard();
-    await screen.findByRole('heading', { name: 'Dashboard' });
+    renderDashboard();
+    const heading = await screen.findByRole('heading', { name: 'Dashboard' });
     expect(screen.getByRole('navigation', { name: 'Mobile navigation' })).toBeInTheDocument();
-    expect(container.firstChild).toHaveClass('overflow-x-hidden');
+    expect(screen.getByRole('navigation', { name: 'Primary navigation' })).toBeInTheDocument();
+    // The app root clips horizontal overflow (clip, not hidden, so sticky bars keep working).
+    expect(heading.closest('.overflow-x-clip')).not.toBeNull();
   });
 });

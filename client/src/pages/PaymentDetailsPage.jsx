@@ -3,7 +3,6 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 
 import { getApiErrorMessage } from '../api/http.js';
 import { getPayment } from '../api/payments.js';
-import { getSubscription } from '../api/subscriptions.js';
 import { EditPaymentDialog, RefundDialog } from '../components/payments/PaymentDialogs.jsx';
 import { pageIndex } from '../layout/nav.js';
 import { CardSkeleton, EmptyState } from '../ui/Feedback.jsx';
@@ -17,38 +16,21 @@ import { formatCurrency } from '../utils/cost.js';
 import { formatDate } from '../utils/dates.js';
 
 /**
- * After a payment is recorded we re-fetch the linked subscription and show the renewal
- * date the backend now stores. If the stored date differs from the one before recording,
- * the digits flip; nothing is computed or simulated on the client.
+ * After a payment is recorded the API returns the subscription as the renewal trigger left
+ * it, so the old and new renewal dates are shown without another request.
  */
-function RenewalAfterPayment({ previousRenewalDate, subscriptionId }) {
-  const [current, setCurrent] = useState(previousRenewalDate);
-  const [status, setStatus] = useState('loading');
-
-  useEffect(() => {
-    getSubscription(subscriptionId)
-      .then((subscription) => {
-        setCurrent(subscription.nextRenewalDate);
-        setStatus('ready');
-      })
-      .catch(() => setStatus('error'));
-  }, [subscriptionId]);
-
-  const changed = status === 'ready' && current !== previousRenewalDate;
+function RenewalAfterPayment({ previousRenewalDate, renewalDate }) {
+  const changed = renewalDate && renewalDate !== previousRenewalDate;
   return (
     <Card className="mb-6" look="pressed">
-      <p className="eyebrow">Subscription renewal date (as stored by the backend)</p>
+      <p className="eyebrow">Subscription renewal date</p>
       <p className="mt-2 text-2xl">
-        <FlipDate value={current} />
+        <FlipDate value={renewalDate || previousRenewalDate} />
       </p>
       <p aria-live="polite" className="mt-2 text-sm text-(--graphite)">
-        {status === 'loading'
-          ? 'Checking the subscription record…'
-          : status === 'error'
-            ? 'The subscription could not be re-loaded.'
-            : changed
-              ? 'The backend updated the next renewal date after this payment.'
-              : 'Recording a payment does not change the stored renewal date; update it from the subscription if needed.'}
+        {changed
+          ? `Moved forward from ${formatDate(previousRenewalDate)} by this payment.`
+          : 'This payment did not move the renewal date (only completed payments on active subscriptions do).'}
       </p>
     </Card>
   );
@@ -109,7 +91,7 @@ export default function PaymentDetailsPage() {
     );
   }
 
-  const name = payment.serviceName || payment.customServiceName;
+  const name = payment.serviceName;
   const isCompleted = payment.paymentStatus === 'completed';
   const remainingRefundableNum = Number(payment.remainingRefundable) || 0;
   const canRefund = isCompleted && remainingRefundableNum > 0;
@@ -155,6 +137,7 @@ export default function PaymentDetailsPage() {
       {location.state?.recorded && payment.subscriptionId && (
         <RenewalAfterPayment
           previousRenewalDate={location.state.previousRenewalDate}
+          renewalDate={location.state.renewalDate}
           subscriptionId={payment.subscriptionId}
         />
       )}

@@ -68,7 +68,7 @@ export function FinancialSummary({ currencyCode, onRetry, savings, widget }) {
             </div>
             <div className="grid grid-cols-1 gap-x-6 gap-y-6 xs:grid-cols-2 2xl:grid-cols-4">
               <Kpi
-                caption="Current active and trial terms"
+                caption="Current Active terms"
                 currency={summary.currencyCode}
                 label="Estimated monthly recurring"
                 value={summary.estimatedMonthlyRecurring}
@@ -80,7 +80,7 @@ export function FinancialSummary({ currencyCode, onRetry, savings, widget }) {
                 value={summary.estimatedYearlyRecurring}
               />
               <Kpi
-                caption="Active and trial, not archived"
+                caption="Active, not archived"
                 format="count"
                 label="Active subscriptions"
                 value={summary.activeSubscriptionCount}
@@ -155,8 +155,8 @@ export function NextRenewal({ currencyCode, widget }) {
           </p>
           <p className="mt-2 text-sm text-soft">
             Renews {relativeDays(next.daysUntilRenewal)} ·{' '}
-            {formatDate(next.nextRenewalDate, 'ddd D MMM')} ·{' '}
-            <span className="num">{formatCurrency(next.price, next.currencyCode)}</span>
+            {formatDate(next.renewalDate, 'ddd D MMM')} ·{' '}
+            <span className="num">{formatCurrency(next.cost, next.currencyCode)}</span>
           </p>
         </>
       ) : (
@@ -193,7 +193,7 @@ export function UpcomingList({ items }) {
   if (!items.length) {
     return (
       <div className="rounded-2xl border border-dashed border-(--hairline-strong) p-5 text-sm text-(--graphite)">
-        <p>No active or trial subscriptions renew within the next 30 days.</p>
+        <p>No Active subscriptions renew within the next 30 days.</p>
         <TextLink className="mt-3" to="/subscriptions/new">
           Add a subscription
         </TextLink>
@@ -217,11 +217,11 @@ export function UpcomingList({ items }) {
             </Link>
             <p className="text-xs text-(--graphite)">
               {getBillingCycleLabel(item.billingCycle)} · {item.status} ·{' '}
-              <time dateTime={item.nextRenewalDate}>{item.nextRenewalDate}</time>
+              <time dateTime={item.renewalDate}>{item.renewalDate}</time>
             </p>
           </div>
           <div className="text-right">
-            <p className="num text-sm">{formatCurrency(item.price, item.currencyCode)}</p>
+            <p className="num text-sm">{formatCurrency(item.cost, item.currencyCode)}</p>
             <p className={`text-xs ${item.isOverdue ? 'font-bold' : 'text-(--graphite)'}`}>
               {item.isOverdue
                 ? `Date passed by ${Math.abs(item.daysUntilRenewal)} days — unconfirmed`
@@ -303,7 +303,7 @@ export function BillingCycles({ onRetry, widget }) {
   return (
     <WidgetBody
       empty={!cycles.length}
-      emptyText="No current active or trial subscription commitments were found."
+      emptyText="No current Active subscription commitments were found."
       label="billing cycle commitments"
       onRetry={onRetry}
       widget={widget}

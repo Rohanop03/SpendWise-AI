@@ -16,14 +16,21 @@ try {
         'spendwise_monthly_equivalent',
         'spendwise_user_financial_summary',
         'spendwise_audit_subscription_changes',
-        'spendwise_retire_stale_recommendations'
+        'spendwise_advance_renewal_date',
+        'renewal_reminders_within',
+        'generate_recommendations'
       )
     UNION ALL
     SELECT 'view', c.relname
     FROM pg_class AS c
     WHERE c.relnamespace = 'public'::regnamespace
       AND c.relkind = 'v'
-      AND c.relname IN ('active_subscription_commitments', 'completed_payment_financials')
+      AND c.relname IN (
+        'active_subscription_commitments',
+        'completed_payment_financials',
+        'renewal_reminders',
+        'monthly_spend_by_category'
+      )
     UNION ALL
     SELECT 'table', c.relname
     FROM pg_class AS c
@@ -35,25 +42,24 @@ try {
     FROM pg_class AS c
     WHERE c.relnamespace = 'public'::regnamespace
       AND c.relkind = 'i'
-      AND c.relname = 'idx_payments_completed_subscription_covering'
+      AND c.relname IN ('idx_payment_history_completed_covering', 'idx_subscription_renewal_date')
     ORDER BY kind, name
   `);
   const trigger = await database.query(`
     SELECT tgname
     FROM pg_trigger
-    WHERE tgrelid = 'public.subscriptions'::regclass
-      AND tgname = 'trg_subscriptions_audit_terms'
+    WHERE tgname IN ('trg_subscription_audit_terms', 'trg_payment_history_update_renewal')
       AND NOT tgisinternal
+    ORDER BY tgname
   `);
   const monthly = await database.query(`
     SELECT
-      spendwise_monthly_equivalent(120, 'monthly') AS monthly,
-      spendwise_monthly_equivalent(120, 'quarterly') AS quarterly,
-      spendwise_monthly_equivalent(120, 'yearly') AS yearly
+      spendwise_monthly_equivalent(120, 'Monthly') AS monthly,
+      spendwise_monthly_equivalent(120, 'Yearly') AS yearly
   `);
 
-  if (objects.rowCount !== 8 || trigger.rowCount !== 1) {
-    throw new Error('One or more Stage 11 database objects are missing.');
+  if (objects.rowCount !== 13 || trigger.rowCount !== 2) {
+    throw new Error('One or more spec database objects are missing.');
   }
 
   console.info(
@@ -63,7 +69,7 @@ try {
         monthlyNormalization: monthly.rows[0],
         objects: objects.rows,
         status: 'verified',
-        trigger: trigger.rows[0].tgname,
+        triggers: trigger.rows.map((row) => row.tgname),
       },
       null,
       2,

@@ -13,7 +13,7 @@ import { testAppConfig } from './helpers/testConfig.js';
 
 const origin = testAppConfig.corsOrigin;
 const password = 'correct horse battery staple';
-const expectedTestDatabaseName = 'spendwise_test';
+const expectedTestDatabaseName = 'smart_subscription_test';
 
 function csrfPost(client, path) {
   return client.post(path).set('Origin', origin).set('X-Requested-With', 'XMLHttpRequest');
@@ -21,7 +21,7 @@ function csrfPost(client, path) {
 
 async function registerUser(client, suffix) {
   const response = await csrfPost(client, '/api/v1/auth/register').send({
-    displayName: `Security Test ${suffix}`,
+    name: `Security Test ${suffix}`,
     email: `security.${suffix}@example.invalid`,
     password,
   });
@@ -34,7 +34,7 @@ async function registerUser(client, suffix) {
 
 if (!config.testDatabaseUrl) {
   test('security integration tests require TEST_DATABASE_URL', {
-    skip: 'Set TEST_DATABASE_URL to the dedicated spendwise_test database.',
+    skip: 'Set TEST_DATABASE_URL to the dedicated smart_subscription_test database.',
   });
 } else {
   const database = createDatabase({ connectionString: config.testDatabaseUrl });
@@ -55,15 +55,15 @@ if (!config.testDatabaseUrl) {
       await runMigrations({ database });
       await seedCatalog(database);
 
-      const catResult = await database.query('SELECT id, name FROM categories ORDER BY name ASC');
+      const catResult = await database.query('SELECT category_id AS id, category_name AS name FROM category ORDER BY category_name ASC');
       categoriesList = catResult.rows;
     });
 
     beforeEach(async () => {
       await database.query(`
         TRUNCATE TABLE
-          subscription_audit_events, auth_sessions, recommendation_subscriptions,
-          recommendations, notifications, refunds, payments, subscriptions,
+          subscription_audit_events, auth_sessions,
+          recommendation, notifications, refunds, payment_history, subscription,
           user_preferences, users
         RESTART IDENTITY CASCADE
       `);
@@ -112,14 +112,13 @@ if (!config.testDatabaseUrl) {
           .post('/api/v1/subscriptions')
           .set('Authorization', `Bearer ${userA.accessToken}`)
           .send({
-            billingCycle: 'monthly',
+            billingCycle: 'Monthly',
             categoryId: categoriesList[0].id,
             currencyCode: 'USD',
-            customServiceName: 'Secret Stream A',
-            nextRenewalDate: '2026-11-01',
-            price: 15.99,
+            serviceName: 'Secret Stream A',
+            renewalDate: '2026-11-01',
+            cost: 15.99,
             startDate: '2026-10-01',
-            status: 'active',
           });
         assert.equal(createSubRes.status, 201);
         const subAId = createSubRes.body.subscription.id;
@@ -161,7 +160,7 @@ if (!config.testDatabaseUrl) {
         const patchSubForeign = await client
           .patch(`/api/v1/subscriptions/${subAId}`)
           .set('Authorization', `Bearer ${userB.accessToken}`)
-          .send({ customServiceName: 'Hacked Service' });
+          .send({ serviceName: 'Hacked Service' });
         assert.equal(patchSubForeign.status, 404);
         assert.equal(patchSubForeign.body.code, 'NOT_FOUND');
 
@@ -264,17 +263,15 @@ if (!config.testDatabaseUrl) {
         // Insert direct recommendation fixture for User A
         const recResult = await database.query(
           `
-            INSERT INTO recommendations (
-              user_id, recommendation_type, rule_version, status,
-              explanation, estimated_savings, currency_code, savings_period,
-              title, priority, confidence, suggested_action, recommendation_key, source_fingerprint
+            INSERT INTO recommendation (
+              user_id, rule, status, recommendation_text, potential_savings, currency_code,
+              title, priority, suggested_action
             ) VALUES (
-              $1, 'price_outlier', 'v1', 'active',
-              'User A Private Recommendation for Price Outlier', 25.00, 'USD', 'monthly',
-              'Review Price Outlier', 'medium', 'medium', 'Review subscription terms',
-              'unique-rec-key-user-a', repeat('a', 64)
+              $1, 'above_category_average', 'Pending',
+              'User A Private Recommendation', 25.00, 'USD',
+              'Above category average', 'medium', 'Review subscription terms'
             )
-            RETURNING id
+            RETURNING recommendation_id AS id
           `,
           [userA.user.id],
         );
@@ -292,7 +289,7 @@ if (!config.testDatabaseUrl) {
         const dismissForeign = await client
           .patch(`/api/v1/recommendations/${recAId}`)
           .set('Authorization', `Bearer ${userB.accessToken}`)
-          .send({ status: 'dismissed' });
+          .send({ status: 'Dismissed' });
         assert.equal(dismissForeign.status, 404);
         assert.equal(dismissForeign.body.code, 'NOT_FOUND');
       });
@@ -360,7 +357,7 @@ if (!config.testDatabaseUrl) {
       it('revokes session on logout and rejects revoked refresh tokens', async () => {
         const client = request(app);
         const registerRes = await csrfPost(client, '/api/v1/auth/register').send({
-          displayName: 'Logout Security Tester',
+          name: 'Logout Security Tester',
           email: 'logout.security@example.invalid',
           password,
         });
@@ -400,19 +397,18 @@ if (!config.testDatabaseUrl) {
           .post('/api/v1/subscriptions')
           .set('Authorization', `Bearer ${user.accessToken}`)
           .send({
-            billingCycle: 'monthly',
+            billingCycle: 'Monthly',
             categoryId: categoriesList[0].id,
             currencyCode: 'USD',
-            customServiceName: "'; DROP TABLE subscriptions; --",
-            nextRenewalDate: '2026-11-01',
-            price: 19.99,
+            serviceName: "'; DROP TABLE subscription; --",
+            renewalDate: '2026-11-01',
+            cost: 19.99,
             startDate: '2026-10-01',
-            status: 'active',
           });
         assert.equal(sqlProbeBody.status, 201);
 
         // Confirm table was not dropped and data is intact
-        const tableCheck = await database.query('SELECT COUNT(*)::int AS count FROM subscriptions');
+        const tableCheck = await database.query('SELECT COUNT(*)::int AS count FROM subscription');
         assert.equal(tableCheck.rows[0].count, 1);
       });
 
@@ -424,14 +420,13 @@ if (!config.testDatabaseUrl) {
           .post('/api/v1/subscriptions')
           .set('Authorization', `Bearer ${user.accessToken}`)
           .send({
-            billingCycle: 'monthly',
+            billingCycle: 'Monthly',
             categoryId: categoriesList[0].id,
             currencyCode: 'USD',
-            customServiceName: 'Negative Price Subscription',
-            nextRenewalDate: '2026-11-01',
-            price: -5.0,
+            serviceName: 'Negative Price Subscription',
+            renewalDate: '2026-11-01',
+            cost: -5.0,
             startDate: '2026-10-01',
-            status: 'active',
           });
         assert.equal(negativePrice.status, 400);
         assert.equal(negativePrice.body.code, 'VALIDATION_ERROR');
@@ -440,14 +435,13 @@ if (!config.testDatabaseUrl) {
           .post('/api/v1/subscriptions')
           .set('Authorization', `Bearer ${user.accessToken}`)
           .send({
-            billingCycle: 'monthly',
+            billingCycle: 'Monthly',
             categoryId: categoriesList[0].id,
             currencyCode: 'USD',
-            customServiceName: 'Invalid Price Subscription',
-            nextRenewalDate: '2026-11-01',
-            price: 'not-a-number',
+            serviceName: 'Invalid Price Subscription',
+            renewalDate: '2026-11-01',
+            cost: 'not-a-number',
             startDate: '2026-10-01',
-            status: 'active',
           });
         assert.equal(nonNumericPrice.status, 400);
         assert.equal(nonNumericPrice.body.code, 'VALIDATION_ERROR');
@@ -461,14 +455,13 @@ if (!config.testDatabaseUrl) {
           .post('/api/v1/subscriptions')
           .set('Authorization', `Bearer ${user.accessToken}`)
           .send({
-            billingCycle: 'monthly',
+            billingCycle: 'Monthly',
             categoryId: categoriesList[0].id,
             currencyCode: 'USD',
-            customServiceName: 'Time Travel Subscription',
-            nextRenewalDate: '2026-05-01',
-            price: 12.0,
+            serviceName: 'Time Travel Subscription',
+            renewalDate: '2026-05-01',
+            cost: 12.0,
             startDate: '2026-10-01',
-            status: 'active',
           });
         assert.equal(invertedDates.status, 400);
         assert.equal(invertedDates.body.code, 'VALIDATION_ERROR');
@@ -485,7 +478,7 @@ if (!config.testDatabaseUrl) {
           .post('/api/v1/subscriptions')
           .set('Authorization', `Bearer ${user.accessToken}`)
           .set('Content-Type', 'application/json')
-          .send(JSON.stringify({ customServiceName: largeString }));
+          .send(JSON.stringify({ serviceName: largeString }));
 
         assert.equal(response.status, 413);
       });
@@ -499,14 +492,13 @@ if (!config.testDatabaseUrl) {
           .post('/api/v1/subscriptions')
           .set('Authorization', `Bearer ${user.accessToken}`)
           .send({
-            billingCycle: 'monthly',
+            billingCycle: 'Monthly',
             categoryId: categoriesList[0].id,
             currencyCode: 'USD',
-            customServiceName: '=CMD|calc.exe',
-            nextRenewalDate: '2026-11-01',
-            price: 29.99,
+            serviceName: '=CMD|calc.exe',
+            renewalDate: '2026-11-01',
+            cost: 29.99,
             startDate: '2026-10-01',
-            status: 'active',
           });
         assert.equal(subRes.status, 201);
         const subId = subRes.body.subscription.id;

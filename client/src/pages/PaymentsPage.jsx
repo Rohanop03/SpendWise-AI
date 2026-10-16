@@ -43,7 +43,7 @@ function groupByMonth(payments) {
 }
 
 function PaymentRow({ payment }) {
-  const name = payment.serviceName || payment.customServiceName;
+  const name = payment.serviceName;
   const hasRefund = Number(payment.totalRefunded) > 0;
   return (
     <li
@@ -208,7 +208,7 @@ export default function PaymentsPage() {
                 <option value="">All Subscriptions</option>
                 {subscriptions.map((sub) => (
                   <option key={sub.id} value={sub.id}>
-                    {sub.serviceName || sub.customServiceName}
+                    {sub.serviceName}
                     {sub.planName ? ` (${sub.planName})` : ''}
                   </option>
                 ))}

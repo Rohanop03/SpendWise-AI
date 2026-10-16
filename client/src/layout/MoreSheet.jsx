@@ -33,9 +33,9 @@ export default function MoreSheet({ items, onLogout, onOpenChange, open, user })
             aria-hidden="true"
             className="neu-raised depth-1 grid size-10 shrink-0 place-items-center rounded-full text-sm font-bold"
           >
-            {initials(user?.displayName)}
+            {initials(user?.name)}
           </span>
-          <span className="truncate text-sm font-bold">{user?.displayName}</span>
+          <span className="truncate text-sm font-bold">{user?.name}</span>
         </span>
         <Pill
           icon="logout"

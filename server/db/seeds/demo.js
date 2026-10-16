@@ -1,8 +1,39 @@
+// Fictional demo data. Every recommendation rule fires on it:
+//   rule 1 unused_subscription     Aarav's gym and Maya's course platform (last used > 60 days ago)
+//   rule 2 above_category_average  Aarav's Netflix vs. his other Entertainment subscriptions
+//   rule 3 duplicate_category      two Entertainment (Aarav) and two Productivity (Maya)
+// Dates are relative to the day the seed runs. Payments are recorded on each renewal date
+// through the renewal trigger, so renewal dates end up in the future like a paying user's.
+
 const demoPasswordHash = '$2b$12$C6UzMDM.H6dfI/f/IKcEe.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
+const demoDatabaseNames = new Set(['smart_subscription', 'spendwise_dev']);
+
 const demoUsers = [
-  ['Aarav Demo', 'aarav.demo@example.invalid', 'INR'],
-  ['Maya Demo', 'maya.demo@example.invalid', 'USD'],
+  {
+    currency: 'INR',
+    email: 'aarav.demo@example.invalid',
+    name: 'Aarav Demo',
+    subscriptions: [
+      { category: 'Entertainment', cost: '649.00', cycle: 'Monthly', lastUsedDaysAgo: 3, months: 6, name: 'Netflix' },
+      { category: 'Entertainment', cost: '299.00', cycle: 'Monthly', lastUsedDaysAgo: 20, months: 4, name: 'Prime Video' },
+      { category: 'Fitness', cost: '1499.00', cycle: 'Monthly', lastUsedDaysAgo: 74, months: 5, name: 'City Gym' },
+      { category: 'Utilities', cost: '999.00', cycle: 'Monthly', lastUsedDaysAgo: 0, months: 8, name: 'Home Broadband' },
+      { category: 'Productivity', cost: '6199.00', cycle: 'Yearly', lastUsedDaysAgo: 1, months: 12, name: 'Microsoft 365' },
+      { category: 'Cloud Storage', cost: '130.00', cycle: 'Monthly', lastUsedDaysAgo: null, months: 3, name: 'Google One' },
+    ],
+  },
+  {
+    currency: 'USD',
+    email: 'maya.demo@example.invalid',
+    name: 'Maya Demo',
+    subscriptions: [
+      { category: 'Productivity', cost: '10.00', cycle: 'Monthly', lastUsedDaysAgo: 2, months: 6, name: 'Notion' },
+      { category: 'Productivity', cost: '8.75', cycle: 'Monthly', lastUsedDaysAgo: 9, months: 3, name: 'Slack Pro' },
+      { category: 'Education', cost: '199.00', cycle: 'Yearly', lastUsedDaysAgo: 95, months: 12, name: 'Course Platform' },
+      { category: 'Entertainment', cost: '11.99', cycle: 'Monthly', lastUsedDaysAgo: 1, months: 9, name: 'Spotify' },
+    ],
+  },
 ];
 
 function assertDemoSeedAllowed({ allowDemoSeed, databaseName, nodeEnv }) {
@@ -10,250 +41,117 @@ function assertDemoSeedAllowed({ allowDemoSeed, databaseName, nodeEnv }) {
     throw new Error('Demo seeding requires NODE_ENV=development and ALLOW_DEMO_SEED=true.');
   }
 
-  if (databaseName !== 'spendwise_dev') {
-    throw new Error('Demo seeding is restricted to the spendwise_dev database.');
+  if (!demoDatabaseNames.has(databaseName)) {
+    throw new Error('Demo seeding is restricted to the smart_subscription development database.');
   }
 }
 
-async function findOrCreateDemoUser(transaction, [displayName, email, preferredCurrency]) {
+async function findOrCreateDemoUser(transaction, { currency, email, name }) {
   const inserted = await transaction.query(
     `
-      INSERT INTO users (display_name, email, password_hash)
+      INSERT INTO users (name, email, password_hash)
       VALUES ($1, $2, $3)
       ON CONFLICT ((lower(email))) DO NOTHING
-      RETURNING id
+      RETURNING user_id
     `,
-    [displayName, email, demoPasswordHash],
+    [name, email, demoPasswordHash],
   );
 
   const userId =
-    inserted.rows[0]?.id ??
-    (await transaction.query(`SELECT id FROM users WHERE lower(email) = lower($1)`, [email]))
-      .rows[0].id;
+    inserted.rows[0]?.user_id ??
+    (await transaction.query('SELECT user_id FROM users WHERE lower(email) = lower($1)', [email]))
+      .rows[0].user_id;
 
   await transaction.query(
     `
       INSERT INTO user_preferences (user_id, preferred_currency, timezone)
-      VALUES ($1, $2, $3)
+      VALUES ($1, $2, 'Asia/Kolkata')
       ON CONFLICT (user_id) DO NOTHING
     `,
-    [userId, preferredCurrency, 'Asia/Kolkata'],
+    [userId, currency],
   );
 
   return userId;
 }
 
-async function findCategoryId(transaction, name) {
-  const result = await transaction.query(
-    'SELECT id FROM categories WHERE lower(name) = lower($1)',
-    [name],
-  );
-
-  if (result.rowCount !== 1) {
-    throw new Error(`Required category not found: ${name}. Run the catalog seed first.`);
-  }
-
-  return result.rows[0].id;
-}
-
-async function findServiceId(transaction, name) {
-  const result = await transaction.query('SELECT id FROM services WHERE lower(name) = lower($1)', [
-    name,
-  ]);
-
-  if (result.rowCount !== 1) {
-    throw new Error(`Required service not found: ${name}. Run the catalog seed first.`);
-  }
-
-  return result.rows[0].id;
-}
-
-async function findOrCreateSubscription(transaction, subscription) {
-  const result = await transaction.query(
+async function seedSubscription(transaction, userId, currency, subscription) {
+  const created = await transaction.query(
     `
-      INSERT INTO subscriptions (
-        user_id,
-        service_id,
-        custom_service_name,
-        category_id,
-        plan_name,
-        price,
-        currency_code,
-        billing_cycle,
-        status,
-        start_date,
-        next_renewal_date,
-        notes
+      INSERT INTO subscription (
+        user_id, category_id, service_name, cost, currency_code, billing_cycle,
+        start_date, renewal_date, last_used_date, notes
       )
-      SELECT $1, $2, $3, $4, $5, $6, $7, $8, 'active', $9, $10, $11
-      WHERE NOT EXISTS (
-        SELECT 1
-        FROM subscriptions
-        WHERE user_id = $1
-          AND service_id IS NOT DISTINCT FROM $2
-          AND custom_service_name IS NOT DISTINCT FROM $3
-          AND plan_name IS NOT DISTINCT FROM $5
-          AND start_date = $9
-      )
-      RETURNING id
+      SELECT $1, c.category_id, $3, $4, $5, $6::billing_cycle_type,
+             (CURRENT_DATE - make_interval(months => $7))::date,
+             (CURRENT_DATE - make_interval(months => $7))::date,
+             CASE WHEN $8::int IS NULL THEN NULL ELSE CURRENT_DATE - $8::int END,
+             'Fictional demonstration record.'
+      FROM category c
+      WHERE lower(c.category_name) = lower($2)
+      RETURNING subscription_id
     `,
     [
-      subscription.userId,
-      subscription.serviceId,
-      subscription.customServiceName,
-      subscription.categoryId,
-      subscription.planName,
-      subscription.price,
-      subscription.currencyCode,
-      subscription.billingCycle,
-      subscription.startDate,
-      subscription.nextRenewalDate,
-      'Fictional Stage 3 demonstration record.',
+      userId,
+      subscription.category,
+      subscription.name,
+      subscription.cost,
+      currency,
+      subscription.cycle,
+      subscription.months,
+      subscription.lastUsedDaysAgo,
     ],
   );
 
-  if (result.rows[0]?.id) {
-    return result.rows[0].id;
+  if (created.rowCount !== 1) {
+    throw new Error(`Required category not found: ${subscription.category}. Run the catalog seed first.`);
   }
 
-  const existing = await transaction.query(
-    `
-      SELECT id
-      FROM subscriptions
-      WHERE user_id = $1
-        AND service_id IS NOT DISTINCT FROM $2
-        AND custom_service_name IS NOT DISTINCT FROM $3
-        AND plan_name IS NOT DISTINCT FROM $4
-        AND start_date = $5
-    `,
-    [
-      subscription.userId,
-      subscription.serviceId,
-      subscription.customServiceName,
-      subscription.planName,
-      subscription.startDate,
-    ],
-  );
+  const subscriptionId = created.rows[0].subscription_id;
 
-  return existing.rows[0].id;
-}
+  // Pay every renewal that has come due; the trigger moves renewal_date forward each time.
+  for (let guard = 0; guard < 400; guard += 1) {
+    const paid = await transaction.query(
+      `
+        INSERT INTO payment_history (subscription_id, amount, currency_code, payment_date, payment_status, notes)
+        SELECT subscription_id, cost, currency_code, renewal_date, 'completed', 'Fictional demonstration payment.'
+        FROM subscription
+        WHERE subscription_id = $1 AND renewal_date <= CURRENT_DATE
+        RETURNING payment_id
+      `,
+      [subscriptionId],
+    );
+    if (paid.rowCount === 0) break;
+  }
 
-async function seedPayment(transaction, payment) {
-  await transaction.query(
-    `
-      INSERT INTO payments (
-        subscription_id,
-        amount,
-        currency_code,
-        payment_date,
-        payment_status,
-        billing_period_start,
-        billing_period_end,
-        notes
-      )
-      SELECT $1, $2, $3, $4, 'completed', $5, $6, $7
-      WHERE NOT EXISTS (
-        SELECT 1
-        FROM payments
-        WHERE subscription_id = $1
-          AND payment_date = $4
-          AND amount = $2
-          AND currency_code = $3
-          AND payment_status = 'completed'
-      )
-    `,
-    [
-      payment.subscriptionId,
-      payment.amount,
-      payment.currencyCode,
-      payment.paymentDate,
-      payment.periodStart,
-      payment.periodEnd,
-      'Fictional Stage 3 demonstration payment.',
-    ],
-  );
+  return subscriptionId;
 }
 
 export async function seedDemoData(database, options) {
   const databaseResult = await database.query('SELECT current_database() AS database_name');
-  const databaseName = databaseResult.rows[0].database_name;
-  assertDemoSeedAllowed({ ...options, databaseName });
+  assertDemoSeedAllowed({ ...options, databaseName: databaseResult.rows[0].database_name });
 
   return database.withTransaction(async (transaction) => {
-    const aaravUserId = await findOrCreateDemoUser(transaction, demoUsers[0]);
-    const mayaUserId = await findOrCreateDemoUser(transaction, demoUsers[1]);
-    const entertainmentId = await findCategoryId(transaction, 'Entertainment');
-    const productivityId = await findCategoryId(transaction, 'Productivity');
-    const netflixId = await findServiceId(transaction, 'Netflix');
-    const notionId = await findServiceId(transaction, 'Notion');
+    let subscriptions = 0;
 
-    const netflixSubscriptionId = await findOrCreateSubscription(transaction, {
-      billingCycle: 'monthly',
-      categoryId: entertainmentId,
-      currencyCode: 'INR',
-      customServiceName: null,
-      nextRenewalDate: '2026-11-05',
-      planName: 'Demo Streaming Plan',
-      price: '649.00',
-      serviceId: netflixId,
-      startDate: '2026-01-05',
-      userId: aaravUserId,
-    });
-    const notionSubscriptionId = await findOrCreateSubscription(transaction, {
-      billingCycle: 'yearly',
-      categoryId: productivityId,
-      currencyCode: 'USD',
-      customServiceName: null,
-      nextRenewalDate: '2027-02-10',
-      planName: 'Demo Workspace Plan',
-      price: '96.00',
-      serviceId: notionId,
-      startDate: '2026-02-10',
-      userId: mayaUserId,
-    });
+    for (const demoUser of demoUsers) {
+      const userId = await findOrCreateDemoUser(transaction, demoUser);
+      const existing = await transaction.query(
+        'SELECT count(*)::int AS count FROM subscription WHERE user_id = $1',
+        [userId],
+      );
 
-    await seedPayment(transaction, {
-      amount: '649.00',
-      currencyCode: 'INR',
-      paymentDate: '2026-10-05',
-      periodEnd: '2026-11-04',
-      periodStart: '2026-10-05',
-      subscriptionId: netflixSubscriptionId,
-    });
-    await seedPayment(transaction, {
-      amount: '96.00',
-      currencyCode: 'USD',
-      paymentDate: '2026-02-10',
-      periodEnd: '2027-02-09',
-      periodStart: '2026-02-10',
-      subscriptionId: notionSubscriptionId,
-    });
+      // Idempotent: a demo user's subscriptions are created once.
+      if (existing.rows[0].count === 0) {
+        for (const subscription of demoUser.subscriptions) {
+          await seedSubscription(transaction, userId, demoUser.currency, subscription);
+          subscriptions += 1;
+        }
+      }
 
-    await transaction.query(
-      `
-        INSERT INTO notifications (
-          user_id,
-          subscription_id,
-          notification_type,
-          title,
-          message,
-          scheduled_for,
-          deduplication_key
-        )
-        VALUES ($1, $2, 'renewal', $3, $4, $5, $6)
-        ON CONFLICT (user_id, deduplication_key) DO NOTHING
-      `,
-      [
-        aaravUserId,
-        netflixSubscriptionId,
-        'Fictional renewal reminder',
-        'Demo subscription renewal is approaching.',
-        '2026-11-01T09:00:00+05:30',
-        'demo:renewal:netflix:2026-11-05',
-      ],
-    );
+      await transaction.query('CALL generate_recommendations($1)', [userId]);
+    }
 
-    return { subscriptions: 2, users: 2 };
+    return { subscriptions, users: demoUsers.length };
   });
 }
 

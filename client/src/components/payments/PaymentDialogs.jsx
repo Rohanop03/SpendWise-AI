@@ -156,7 +156,7 @@ function RefundForm({ onClose, onSuccess, payment }) {
 export function RefundDialog({ isOpen, onClose, onSuccess, payment }) {
   return (
     <Dialog
-      description={`Payment ID #${payment.id} · ${payment.serviceName || payment.customServiceName}`}
+      description={`Payment ID #${payment.id} · ${payment.serviceName}`}
       onOpenChange={(open) => !open && onClose()}
       open={isOpen}
       title="Record Manual Refund"
@@ -304,7 +304,7 @@ function EditForm({ onClose, onSuccess, payment }) {
 export function EditPaymentDialog({ isOpen, onClose, onSuccess, payment }) {
   return (
     <Dialog
-      description={`Payment ID #${payment.id} · ${payment.serviceName || payment.customServiceName}`}
+      description={`Payment ID #${payment.id} · ${payment.serviceName}`}
       onOpenChange={(open) => !open && onClose()}
       open={isOpen}
       title="Correct Payment Entry"

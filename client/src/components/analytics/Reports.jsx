@@ -177,7 +177,7 @@ export function TopSubscriptionsCard({
                       <span className="text-xs text-(--graphite)">/mo</span>
                     </p>
                     <p className="num text-[11px] text-(--graphite)">
-                      Plan: {formatCurrency(sub.currentPrice, sub.currencyCode)}
+                      Plan: {formatCurrency(sub.currentCost, sub.currencyCode)}
                     </p>
                   </>
                 ) : (
@@ -406,7 +406,7 @@ const sortColumns = [
   [null, 'Category', 'left'],
   [null, 'Status', 'left'],
   [null, 'Cycle', 'left'],
-  ['currentPrice', 'Current Price', 'right'],
+  ['currentCost', 'Current Cost', 'right'],
   ['grossPayments', 'Gross Payments', 'right'],
   [null, 'Refunds', 'right'],
   ['netCashFlow', 'Net Cash Flow', 'right'],
@@ -471,7 +471,7 @@ export function SubscriptionSpendingTable({ onSort, sortBy, sortOrder, subscript
               </td>
               <td className="text-xs">{getBillingCycleLabel(sub.billingCycle)}</td>
               <td className="num text-right text-xs">
-                {formatCurrency(sub.currentPrice, sub.currencyCode)}
+                {formatCurrency(sub.currentCost, sub.currencyCode)}
               </td>
               <td className="num text-right">
                 {formatCurrency(sub.grossPayments, sub.currencyCode)}
@@ -501,7 +501,7 @@ export function BillingCycleDistribution({ billingCycles }) {
     <Card>
       <CardHeader
         as="h3"
-        description="Breakdown of active and trial recurring subscriptions by billing interval"
+        description="Breakdown of Active recurring subscriptions by billing interval"
         title="Billing Cycle Distribution"
       />
       <ul className="grid gap-4 sm:grid-cols-3">
@@ -539,7 +539,7 @@ export function BillingCycleDistribution({ billingCycles }) {
                 <dd className="font-bold">
                   {cycle.subscriptionCount}{' '}
                   <span className="font-normal text-(--graphite)">
-                    ({cycle.activeCount} active, {cycle.trialCount} trial)
+                    
                   </span>
                 </dd>
               </div>

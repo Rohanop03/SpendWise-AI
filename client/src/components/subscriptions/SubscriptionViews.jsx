@@ -15,13 +15,13 @@ import { daysUntil, formatDate, relativeDays } from '../../utils/dates.js';
 
 /** Renewal date + "in N days" (only for live subscriptions). */
 export function RenewalCell({ subscription }) {
-  if (!subscription.nextRenewalDate) return <span className="text-(--graphite)">—</span>;
-  const days = daysUntil(subscription.nextRenewalDate);
-  const live = ['active', 'trial'].includes(subscription.status) && !subscription.archivedAt;
+  if (!subscription.renewalDate) return <span className="text-(--graphite)">—</span>;
+  const days = daysUntil(subscription.renewalDate);
+  const live = subscription.status === 'Active' && !subscription.archivedAt;
   return (
     <span className="block">
-      <time className="num text-sm" dateTime={subscription.nextRenewalDate}>
-        {formatDate(subscription.nextRenewalDate)}
+      <time className="num text-sm" dateTime={subscription.renewalDate}>
+        {formatDate(subscription.renewalDate)}
       </time>
       {live && days !== null && (
         <span className={`block text-xs ${days <= 3 ? 'font-bold' : 'text-(--graphite)'}`}>
@@ -33,8 +33,8 @@ export function RenewalCell({ subscription }) {
 }
 
 const sortable = {
-  nextRenewalDate: 'nextRenewalDate',
-  price: 'price',
+  renewalDate: 'renewalDate',
+  cost: 'cost',
   service: 'serviceName',
 };
 
@@ -48,7 +48,7 @@ export function SubscriptionTable({ onArchiveClick, onSort, sortBy, sortOrder, s
       {
         cell: ({ row }) => {
           const sub = row.original;
-          const cancelled = sub.status === 'cancelled';
+          const cancelled = sub.status === 'Cancelled';
           return (
             <div className="min-w-[10rem]">
               <Link
@@ -74,12 +74,12 @@ export function SubscriptionTable({ onArchiveClick, onSort, sortBy, sortOrder, s
           const sub = row.original;
           return (
             <div className="whitespace-nowrap text-right">
-              <div className="num">{formatCurrency(sub.price, sub.currencyCode)}</div>
-              {sub.billingCycle !== 'monthly' && (
+              <div className="num">{formatCurrency(sub.cost, sub.currencyCode)}</div>
+              {sub.billingCycle !== 'Monthly' && (
                 <div className="num text-xs text-(--graphite)">
                   ~
                   {formatCurrency(
-                    calculateMonthlyEquivalent(sub.price, sub.billingCycle),
+                    calculateMonthlyEquivalent(sub.cost, sub.billingCycle),
                     sub.currencyCode,
                   )}
                   /mo
@@ -89,7 +89,7 @@ export function SubscriptionTable({ onArchiveClick, onSort, sortBy, sortOrder, s
           );
         },
         header: 'Cost',
-        id: 'price',
+        id: 'cost',
       },
       {
         cell: ({ row }) => getBillingCycleLabel(row.original.billingCycle),
@@ -99,7 +99,7 @@ export function SubscriptionTable({ onArchiveClick, onSort, sortBy, sortOrder, s
       {
         cell: ({ row }) => <RenewalCell subscription={row.original} />,
         header: 'Next renewal',
-        id: 'nextRenewalDate',
+        id: 'renewalDate',
       },
       {
         cell: ({ row }) => (
@@ -177,7 +177,7 @@ export function SubscriptionTable({ onArchiveClick, onSort, sortBy, sortOrder, s
                     aria-sort={
                       active ? (sortOrder === 'asc' ? 'ascending' : 'descending') : undefined
                     }
-                    className={`${index === 0 ? 'sticky-col' : ''} ${header.column.id === 'price' ? '!text-right' : ''}`}
+                    className={`${index === 0 ? 'sticky-col' : ''} ${header.column.id === 'cost' ? '!text-right' : ''}`}
                     key={header.id}
                     scope="col"
                   >
@@ -209,7 +209,7 @@ export function SubscriptionTable({ onArchiveClick, onSort, sortBy, sortOrder, s
             {table.getRowModel().rows.map((row) => (
               <motion.tr
                 animate={{ opacity: 1 }}
-                className={row.original.status === 'cancelled' ? 'opacity-70' : ''}
+                className={row.original.status === 'Cancelled' ? 'opacity-70' : ''}
                 data-cursor="OPEN"
                 exit={{ opacity: 0 }}
                 initial={{ opacity: 0 }}
@@ -232,8 +232,8 @@ export function SubscriptionTable({ onArchiveClick, onSort, sortBy, sortOrder, s
 
 /** Raised card per subscription; cancelled ones are flattened and faded with a struck name. */
 export function SubscriptionCard({ onArchiveClick, subscription }) {
-  const cancelled = subscription.status === 'cancelled';
-  const monthly = calculateMonthlyEquivalent(subscription.price, subscription.billingCycle);
+  const cancelled = subscription.status === 'Cancelled';
+  const monthly = calculateMonthlyEquivalent(subscription.cost, subscription.billingCycle);
   return (
     <motion.article
       animate={{ opacity: cancelled ? 0.72 : 1, y: 0 }}
@@ -260,9 +260,9 @@ export function SubscriptionCard({ onArchiveClick, subscription }) {
       <div className="mt-5 flex items-end justify-between gap-3 border-t border-(--hairline) pt-4">
         <div>
           <p className="num text-xl">
-            {formatCurrency(subscription.price, subscription.currencyCode)}
+            {formatCurrency(subscription.cost, subscription.currencyCode)}
           </p>
-          {subscription.billingCycle !== 'monthly' && (
+          {subscription.billingCycle !== 'Monthly' && (
             <p className="num text-xs text-(--graphite)">
               ~{formatCurrency(monthly, subscription.currencyCode)}/mo
             </p>

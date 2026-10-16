@@ -27,14 +27,14 @@ function AccountPage() {
     handleSubmit,
     register,
   } = useForm({
-    defaultValues: { displayName: user.displayName },
+    defaultValues: { name: user.name },
     resolver: zodResolver(profileSchema),
   });
 
   async function submit(values) {
     setMessage({ text: '', tone: 'success' });
     try {
-      const updatedUser = await updateProfile({ displayName: values.displayName });
+      const updatedUser = await updateProfile({ name: values.name });
       setUser(updatedUser);
       setMessage({ text: 'Profile updated.', tone: 'success' });
     } catch (error) {
@@ -59,14 +59,14 @@ function AccountPage() {
         <Card className="lg:col-span-7">
           <CardHeader title="Profile" />
           <form className="space-y-5" noValidate onSubmit={handleSubmit(submit)}>
-            <Field error={errors.displayName?.message} label="Display name">
+            <Field error={errors.name?.message} label="Name">
               {(id, describedBy, invalid) => (
                 <Input
                   aria-describedby={describedBy}
                   id={id}
                   invalid={invalid}
                   maxLength={100}
-                  {...register('displayName')}
+                  {...register('name')}
                 />
               )}
             </Field>
@@ -93,10 +93,10 @@ function AccountPage() {
                 aria-hidden="true"
                 className="pill-paper grid size-14 shrink-0 place-items-center rounded-full text-lg font-bold"
               >
-                {initials(user.displayName)}
+                {initials(user.name)}
               </span>
               <div className="min-w-0">
-                <p className="truncate text-lg font-bold">{user.displayName}</p>
+                <p className="truncate text-lg font-bold">{user.name}</p>
                 <p className="truncate text-sm text-soft">{user.email}</p>
               </div>
             </div>

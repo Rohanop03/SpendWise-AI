@@ -1,17 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import {
-  getAnalyticsOverview,
-  getBillingCycleAnalytics,
-  getCategoryAnalytics,
-  getPaymentStatusAnalytics,
-  getRefundAnalytics,
-  getSpendingTrends,
-  getTopSubscriptions,
-} from '../api/analytics.js';
-import { getUpcomingRenewals } from '../api/billing.js';
+import { getDashboard } from '../api/dashboard.js';
 
-const EMPTY_WIDGET = { data: null, error: '', loading: true };
 const WIDGET_NAMES = [
   'overview',
   'trends',
@@ -23,8 +13,13 @@ const WIDGET_NAMES = [
   'renewals',
 ];
 
-function initialWidgets() {
-  return Object.fromEntries(WIDGET_NAMES.map((name) => [name, { ...EMPTY_WIDGET }]));
+function widgetsFrom(data, error) {
+  return Object.fromEntries(
+    WIDGET_NAMES.map((name) => [
+      name,
+      { data: data ? data[name] : null, error: error || '', loading: !data && !error },
+    ]),
+  );
 }
 
 function errorMessage(reason) {
@@ -32,82 +27,58 @@ function errorMessage(reason) {
   return reason?.response?.data?.message || 'This dashboard section could not be loaded.';
 }
 
+/**
+ * Dashboard data from GET /dashboard: one request (the server runs the widget queries in
+ * parallel) instead of eight. Widget objects keep the `{ data, error, loading }` shape.
+ */
 export function useDashboardData({ currencyCode, enabled = true, endDate, startDate }) {
-  const [widgets, setWidgets] = useState(initialWidgets);
+  const [state, setState] = useState({ data: null, error: '' });
   const [reloadKey, setReloadKey] = useState(0);
-  const requestId = useRef(0);
-
   const retry = useCallback(() => setReloadKey((value) => value + 1), []);
 
   useEffect(() => {
     if (!enabled) return undefined;
-
     const controller = new AbortController();
-    const currentRequest = ++requestId.current;
-    const params = {
-      currencyCode: currencyCode || undefined,
-      endDate: endDate || undefined,
-      startDate: startDate || undefined,
-    };
-    const options = { signal: controller.signal };
-
     queueMicrotask(() => {
-      if (controller.signal.aborted || currentRequest !== requestId.current) return;
-      setWidgets((current) =>
-        Object.fromEntries(
-          WIDGET_NAMES.map((name) => [name, { ...current[name], error: '', loading: true }]),
-        ),
-      );
+      if (!controller.signal.aborted) setState((current) => ({ ...current, error: '' }));
     });
-
-    const requests = [
-      // The unfiltered overview doubles as the currency inventory. Each summary remains
-      // currency-isolated, while every other historical widget uses the selected currency.
-      getAnalyticsOverview(
-        { endDate: endDate || undefined, startDate: startDate || undefined },
-        options,
-      ),
-      getSpendingTrends({ ...params, interval: 'monthly' }, options),
-      getCategoryAnalytics(params, options),
-      currencyCode
-        ? getTopSubscriptions({ ...params, limit: 5, type: 'historical' }, options)
-        : Promise.resolve({ subscriptions: [] }),
-      getBillingCycleAnalytics({ currencyCode: currencyCode || undefined }, options),
-      getPaymentStatusAnalytics(params, options),
-      getRefundAnalytics({ ...params, limit: 5 }, options),
-      getUpcomingRenewals({ days: 30 }, options),
-    ];
-
-    Promise.allSettled(requests).then((results) => {
-      if (controller.signal.aborted || currentRequest !== requestId.current) return;
-
-      setWidgets(
-        Object.fromEntries(
-          results.map((result, index) => {
-            const name = WIDGET_NAMES[index];
-            return [
-              name,
-              result.status === 'fulfilled'
-                ? { data: result.value, error: '', loading: false }
-                : { data: null, error: errorMessage(result.reason), loading: false },
-            ];
-          }),
-        ),
-      );
-    });
-
+    getDashboard(
+      {
+        currencyCode: currencyCode || undefined,
+        days: 30,
+        endDate: endDate || undefined,
+        startDate: startDate || undefined,
+      },
+      { signal: controller.signal },
+    )
+      .then((data) => {
+        if (!controller.signal.aborted) setState({ data, error: '' });
+      })
+      .catch((reason) => {
+        const message = errorMessage(reason);
+        if (!controller.signal.aborted && message) setState({ data: null, error: message });
+      });
     return () => controller.abort();
   }, [currencyCode, enabled, endDate, reloadKey, startDate]);
 
-  const isLoading = WIDGET_NAMES.every((name) => widgets[name].loading);
-  const failedCount = WIDGET_NAMES.filter((name) => widgets[name].error).length;
+  const widgets = useMemo(() => widgetsFrom(state.data, state.error), [state]);
+  const isLoading = !state.data && !state.error;
+  const failedCount = state.error ? WIDGET_NAMES.length : 0;
   const currencyOptions = useMemo(() => {
     const codes = new Set();
-    for (const row of widgets.overview.data?.currencySummaries || []) codes.add(row.currencyCode);
-    for (const row of widgets.billingCycles.data?.billingCycles || []) codes.add(row.currencyCode);
+    for (const row of state.data?.overview?.currencySummaries || []) codes.add(row.currencyCode);
+    for (const row of state.data?.billingCycles?.billingCycles || []) codes.add(row.currencyCode);
     if (currencyCode) codes.add(currencyCode);
     return [...codes].sort();
-  }, [currencyCode, widgets.billingCycles.data, widgets.overview.data]);
+  }, [currencyCode, state.data]);
 
-  return { currencyOptions, failedCount, isLoading, retry, widgets };
+  return {
+    currencyOptions,
+    failedCount,
+    isLoading,
+    preferences: state.data?.preferences ?? null,
+    recommendations: state.data?.recommendations ?? null,
+    retry,
+    widgets,
+  };
 }

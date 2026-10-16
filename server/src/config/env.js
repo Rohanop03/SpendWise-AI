@@ -147,6 +147,11 @@ export function loadConfig(environment = process.env) {
     }),
     cookieSecure: parseBoolean(environment.COOKIE_SECURE, 'COOKIE_SECURE'),
     corsOrigin: parseCorsOrigin(environment.CORS_ORIGIN),
+    databasePoolMax: parseInteger(environment.DATABASE_POOL_MAX, 'DATABASE_POOL_MAX', {
+      defaultValue: 20,
+      maximum: 100,
+      minimum: 1,
+    }),
     databaseSsl: parseBoolean(environment.DATABASE_SSL, 'DATABASE_SSL', false),
     databaseUrl: parseDatabaseUrl(environment.DATABASE_URL, 'DATABASE_URL'),
     jwtAccessExpiresIn: parseJwtExpiration(environment.JWT_ACCESS_EXPIRES_IN),

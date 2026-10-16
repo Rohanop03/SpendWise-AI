@@ -12,17 +12,17 @@ const fixture = uniqueFixture('advanced-demo');
 async function insertUsers(count) {
   const result = await database.query(
     `
-      INSERT INTO users (display_name, email, password_hash)
+      INSERT INTO users (name, email, password_hash)
       SELECT
         'DBMS demo ' || value,
         $1 || '-' || value || '@example.invalid',
         '$2b$12$integrationfixturehash000000000000000000000000000000'
       FROM generate_series(1, $2) AS value
-      RETURNING id
+      RETURNING user_id
     `,
     [fixture, count],
   );
-  return result.rows.map((row) => row.id);
+  return result.rows.map((row) => row.user_id);
 }
 
 async function demonstrateReadCommitted(userId) {
@@ -30,19 +30,19 @@ async function demonstrateReadCommitted(userId) {
     await client.query('BEGIN ISOLATION LEVEL READ COMMITTED');
     await client.query(`SET LOCAL lock_timeout = '5s'`);
     await client.query(`SET LOCAL statement_timeout = '10s'`);
-    const first = await client.query('SELECT display_name FROM users WHERE id = $1', [userId]);
-    await database.query('UPDATE users SET display_name = $1 WHERE id = $2', [
+    const first = await client.query('SELECT name FROM users WHERE user_id = $1', [userId]);
+    await database.query('UPDATE users SET name = $1 WHERE user_id = $2', [
       'READ COMMITTED changed',
       userId,
     ]);
-    const second = await client.query('SELECT display_name FROM users WHERE id = $1', [userId]);
+    const second = await client.query('SELECT name FROM users WHERE user_id = $1', [userId]);
     await client.query('COMMIT');
-    return { first: first.rows[0].display_name, second: second.rows[0].display_name };
+    return { first: first.rows[0].name, second: second.rows[0].name };
   });
 }
 
 async function demonstrateRepeatableRead(userId) {
-  await database.query('UPDATE users SET display_name = $1 WHERE id = $2', [
+  await database.query('UPDATE users SET name = $1 WHERE user_id = $2', [
     'REPEATABLE READ before',
     userId,
   ]);
@@ -50,20 +50,20 @@ async function demonstrateRepeatableRead(userId) {
     await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
     await client.query(`SET LOCAL lock_timeout = '5s'`);
     await client.query(`SET LOCAL statement_timeout = '10s'`);
-    const first = await client.query('SELECT display_name FROM users WHERE id = $1', [userId]);
-    await database.query('UPDATE users SET display_name = $1 WHERE id = $2', [
+    const first = await client.query('SELECT name FROM users WHERE user_id = $1', [userId]);
+    await database.query('UPDATE users SET name = $1 WHERE user_id = $2', [
       'REPEATABLE READ after',
       userId,
     ]);
-    const second = await client.query('SELECT display_name FROM users WHERE id = $1', [userId]);
+    const second = await client.query('SELECT name FROM users WHERE user_id = $1', [userId]);
     await client.query('COMMIT');
-    const afterCommit = await database.query('SELECT display_name FROM users WHERE id = $1', [
+    const afterCommit = await database.query('SELECT name FROM users WHERE user_id = $1', [
       userId,
     ]);
     return {
-      afterCommit: afterCommit.rows[0].display_name,
-      first: first.rows[0].display_name,
-      second: second.rows[0].display_name,
+      afterCommit: afterCommit.rows[0].name,
+      first: first.rows[0].name,
+      second: second.rows[0].name,
     };
   });
 }
@@ -82,18 +82,18 @@ async function runPairedTransactions(userIds, { isolationLevel, deadlock = false
         await client.query(`SET LOCAL lock_timeout = '5s'`);
         await client.query(`SET LOCAL statement_timeout = '10s'`);
         if (deadlock) {
-          await client.query('UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [
+          await client.query('UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE user_id = $1', [
             firstId,
           ]);
         } else {
-          await client.query('SELECT id FROM users WHERE id = ANY($1::bigint[]) ORDER BY id', [
+          await client.query('SELECT user_id FROM users WHERE user_id = ANY($1::int[]) ORDER BY user_id', [
             userIds,
           ]);
         }
         arrivals += 1;
         if (arrivals === 2) release();
         await barrier;
-        await client.query('UPDATE users SET display_name = $1 WHERE id = $2', [label, secondId]);
+        await client.query('UPDATE users SET name = $1 WHERE user_id = $2', [label, secondId]);
         await client.query('COMMIT');
         return 'committed';
       } catch (error) {
@@ -114,18 +114,18 @@ async function demonstrateAcid(userId) {
     await database.withTransaction(async (transaction) => {
       await transaction.query(
         `
-          INSERT INTO recommendations (
-            user_id, recommendation_type, title, explanation, rule_version, priority,
-            confidence, suggested_action, recommendation_key, source_fingerprint
-          ) VALUES ($1, 'price_outlier', 'Atomic probe', 'Must roll back', 'demo-v1',
-            'low', 'high', 'No action', 'atomic-probe', repeat('a', 64))
+          INSERT INTO recommendation (
+            user_id, rule, title, recommendation_text, priority, suggested_action
+          ) VALUES ($1, 'unused_subscription', 'Atomic probe', 'Must roll back', 'low', 'No action')
         `,
         [userId],
       );
+      // Points at a subscription that does not exist: the FK fails and both rows roll back.
       await transaction.query(
         `
-          INSERT INTO recommendation_subscriptions (recommendation_id, subscription_id, user_id)
-          VALUES (currval(pg_get_serial_sequence('recommendations', 'id')), 999999999, $1)
+          INSERT INTO recommendation (
+            user_id, subscription_id, rule, title, recommendation_text, priority, suggested_action
+          ) VALUES ($1, 999999999, 'duplicate_category', 'Atomic probe', 'Must roll back', 'low', 'No action')
         `,
         [userId],
       );
@@ -134,19 +134,19 @@ async function demonstrateAcid(userId) {
     consistencyError = error.code;
   }
   const rolledBack = await database.query(
-    `SELECT count(*)::INTEGER AS count FROM recommendations WHERE user_id = $1 AND recommendation_key = 'atomic-probe'`,
+    `SELECT count(*)::INTEGER AS count FROM recommendation WHERE user_id = $1 AND title = 'Atomic probe'`,
     [userId],
   );
   await database.withTransaction((transaction) =>
-    transaction.query(`UPDATE users SET display_name = 'Durability committed' WHERE id = $1`, [
+    transaction.query(`UPDATE users SET name = 'Durability committed' WHERE user_id = $1`, [
       userId,
     ]),
   );
-  const durable = await database.query('SELECT display_name FROM users WHERE id = $1', [userId]);
+  const durable = await database.query('SELECT name FROM users WHERE user_id = $1', [userId]);
   return {
     atomicRollbackRows: rolledBack.rows[0].count,
     consistencyError,
-    durableValueAfterRelease: durable.rows[0].display_name,
+    durableValueAfterRelease: durable.rows[0].name,
   };
 }
 

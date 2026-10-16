@@ -1,16 +1,16 @@
 export function createPaymentController(paymentService) {
   return {
     async create(request, response) {
-      const payment = await paymentService.createPayment(
+      const result = await paymentService.createPayment(
         request.user.id,
-        request.params.id,
+        request.validatedParams.id,
         request.validatedBody,
       );
-      response.status(201).json({ payment });
+      response.status(201).json(result);
     },
 
     async getById(request, response) {
-      const payment = await paymentService.getPayment(request.user.id, request.params.id);
+      const payment = await paymentService.getPayment(request.user.id, request.validatedParams.id);
       response.status(200).json({ payment });
     },
 
@@ -25,7 +25,7 @@ export function createPaymentController(paymentService) {
     async listForSubscription(request, response) {
       const result = await paymentService.listSubscriptionPayments(
         request.user.id,
-        request.params.id,
+        request.validatedParams.id,
         request.validatedQuery || request.query,
       );
       response.status(200).json(result);
@@ -34,7 +34,7 @@ export function createPaymentController(paymentService) {
     async update(request, response) {
       const payment = await paymentService.updatePayment(
         request.user.id,
-        request.params.id,
+        request.validatedParams.id,
         request.validatedBody,
       );
       response.status(200).json({ payment });

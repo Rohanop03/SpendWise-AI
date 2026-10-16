@@ -52,9 +52,9 @@ export default function RecordPaymentPage() {
   // Same autofill as before: amount, currency and an estimated billing period.
   function applySubscription(sub) {
     setValue('subscriptionId', String(sub.id));
-    setValue('amount', String(sub.price));
+    setValue('amount', String(sub.cost));
     setValue('currencyCode', sub.currencyCode);
-    const baseDate = sub.nextRenewalDate || sub.startDate || today();
+    const baseDate = sub.renewalDate || sub.startDate || today();
     setValue('billingPeriodStart', baseDate);
     setValue('billingPeriodEnd', calculateEstimatedPeriodEnd(baseDate, sub.billingCycle));
   }
@@ -91,8 +91,12 @@ export default function RecordPaymentPage() {
     try {
       const created = await createPayment(values.subscriptionId, payload);
       notify('Payment recorded.');
-      navigate(`/payments/${created.id}`, {
-        state: { previousRenewalDate: subscription?.nextRenewalDate ?? null, recorded: true },
+      navigate(`/payments/${created.payment.id}`, {
+        state: {
+          previousRenewalDate: subscription?.renewalDate ?? null,
+          recorded: true,
+          renewalDate: created.subscription?.renewalDate ?? null,
+        },
       });
     } catch (err) {
       setError(getApiErrorMessage(err));
@@ -147,9 +151,9 @@ export default function RecordPaymentPage() {
                 </option>
                 {subscriptions.map((sub) => (
                   <option key={sub.id} value={sub.id}>
-                    {sub.serviceName || sub.customServiceName}
+                    {sub.serviceName}
                     {sub.planName ? ` (${sub.planName})` : ''} —{' '}
-                    {formatCurrency(sub.price, sub.currencyCode)} / {sub.billingCycle}
+                    {formatCurrency(sub.cost, sub.currencyCode)} / {sub.billingCycle}
                   </option>
                 ))}
               </Select>

@@ -29,3 +29,31 @@ export async function restoreSubscription(id) {
   const response = await http.post(`/subscriptions/${id}/restore`);
   return response.data.subscription;
 }
+
+/** FR2 delete: removes the subscription with its payments and reminders. */
+export async function deleteSubscription(id) {
+  await http.delete(`/subscriptions/${id}`);
+}
+
+/** Cancels, optionally recording a final payment in the same transaction. */
+export async function cancelSubscription(id, finalPayment) {
+  const response = await http.post(
+    `/subscriptions/${id}/cancel`,
+    finalPayment ? { finalPayment } : {},
+  );
+  return response.data;
+}
+
+/** Records use today (the user's local date on the server) or on `lastUsedDate`. */
+export async function markSubscriptionUsed(id, lastUsedDate) {
+  const response = await http.patch(
+    `/subscriptions/${id}/used`,
+    lastUsedDate ? { lastUsedDate } : {},
+  );
+  return response.data.subscription;
+}
+
+export async function getSubscriptionHistory(id) {
+  const response = await http.get(`/subscriptions/${id}/history`);
+  return response.data.items;
+}

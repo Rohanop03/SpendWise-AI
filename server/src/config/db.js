@@ -27,7 +27,9 @@ export function createDatabase({
         connectionString,
         connectionTimeoutMillis: 3000,
         idleTimeoutMillis: 10000,
-        max: 10,
+        // The dashboard runs ~12 queries concurrently per request; 20 connections keep a few
+        // simultaneous dashboards from queueing (PostgreSQL's default limit is 100).
+        max: config.databasePoolMax,
       };
 
       if (config.databaseSsl) {

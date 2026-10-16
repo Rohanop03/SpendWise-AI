@@ -31,7 +31,7 @@ function RegisterPage() {
     setError('');
     try {
       await registerAccount({
-        displayName: values.displayName,
+        name: values.displayName,
         email: values.email,
         password: values.password,
       });

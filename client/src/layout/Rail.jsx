@@ -60,10 +60,10 @@ export default function Rail({ onLogout, user }) {
             aria-hidden="true"
             className="neu-raised depth-1 grid size-10 shrink-0 place-items-center rounded-full text-sm font-bold"
           >
-            {initials(user?.displayName)}
+            {initials(user?.name)}
           </span>
           <span className="hidden min-w-0 flex-1 xl:block">
-            <span className="block truncate text-sm font-bold">{user?.displayName}</span>
+            <span className="block truncate text-sm font-bold">{user?.name}</span>
             <span className="block truncate text-xs text-(--graphite)">{user?.email}</span>
           </span>
         </div>

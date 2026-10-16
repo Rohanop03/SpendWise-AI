@@ -1,19 +1,21 @@
+import { escapeLikePattern } from '../utils/sql.js';
+
 export function createCatalogRepository(database) {
   return {
     async listCategories() {
       const result = await database.query(
         `
-          SELECT id, name, description, created_at
-          FROM categories
-          ORDER BY name ASC
+          SELECT category_id, category_name, description, created_at
+          FROM category
+          ORDER BY category_name ASC
         `,
       );
 
       return result.rows.map((row) => ({
         createdAt: row.created_at,
         description: row.description,
-        id: String(row.id),
-        name: row.name,
+        id: String(row.category_id),
+        name: row.category_name,
       }));
     },
 
@@ -25,17 +27,17 @@ export function createCatalogRepository(database) {
           s.id,
           s.name,
           s.default_category_id,
-          c.name AS category_name,
+          c.category_name,
           s.website_url,
           s.is_active,
           s.created_at
         FROM services AS s
-        LEFT JOIN categories AS c ON c.id = s.default_category_id
+        LEFT JOIN category AS c ON c.category_id = s.default_category_id
         WHERE s.is_active = TRUE
       `;
 
       if (trimmedSearch.length > 0) {
-        params.push(`%${trimmedSearch}%`);
+        params.push(`%${escapeLikePattern(trimmedSearch)}%`);
         query += ` AND s.name ILIKE $${params.length}`;
       }
 

@@ -3,7 +3,7 @@ import { z } from 'zod';
 /*
  * Client-side form rules. They mirror the previous client checks and the backend contract
  * in server/src/validation/schemas.js (and the database CHECK constraints), so the UI
- * blocks exactly what the API would reject. Payload field names are unchanged.
+ * blocks exactly what the API would reject.
  * Login/register rules live in authRules.js (RHF built-ins) to keep Zod off public pages.
  */
 
@@ -20,11 +20,11 @@ const twoDecimals = (value) =>
   !String(value).includes('.') || String(value).split('.')[1].length <= 2;
 
 export const profileSchema = z.object({
-  displayName: z
+  name: z
     .string()
     .trim()
-    .min(1, 'Enter a display name.')
-    .max(100, 'Display name must be 100 characters or fewer.'),
+    .min(1, 'Enter your name.')
+    .max(100, 'Name must be 100 characters or fewer.'),
 });
 
 export const changePasswordSchema = z
@@ -71,30 +71,30 @@ export const preferencesSchema = z.object({
       },
       { message: 'Timezone must be a valid IANA timezone identifier.' },
     ),
-  trialReminderDays: reminderDays,
-  trialRemindersEnabled: z.boolean(),
 });
 
 export const subscriptionSchema = z
   .object({
-    billingCycle: z.enum(['monthly', 'quarterly', 'yearly']),
+    billingCycle: z.enum(['Monthly', 'Yearly']),
     categoryId: z.string().min(1, 'Please select a category.'),
+    cost: z
+      .string()
+      .min(1, 'Cost must be greater than 0.')
+      .refine((value) => Number.isFinite(Number(value)) && Number(value) > 0, {
+        message: 'Cost must be greater than 0.',
+      })
+      .refine((value) => Number(value) < 1000000, { message: 'Cost must be below 1,000,000.' })
+      .refine(twoDecimals, { message: 'Cost cannot have more than 2 decimal places.' }),
     currencyCode: currency,
-    customServiceName: z.string().max(120, 'Use 120 characters or fewer.'),
-    nextRenewalDate: z.string(),
+    customServiceName: z.string().max(100, 'Use 100 characters or fewer.'),
+    lastUsedDate: z.string(),
     notes: z.string().max(2000, 'Notes must be 2000 characters or fewer.'),
     planName: z.string().max(120, 'Use 120 characters or fewer.'),
-    price: z
-      .string()
-      .min(1, 'Price must be 0 or greater.')
-      .refine((value) => Number.isFinite(Number(value)) && Number(value) >= 0, {
-        message: 'Price must be 0 or greater.',
-      }),
+    renewalDate: z.string().regex(isoDate, 'Enter the renewal date.'),
     serviceId: z.string(),
     serviceMode: z.enum(['catalog', 'custom']),
     startDate: z.string().regex(isoDate, 'Enter a start date.'),
-    status: z.enum(['active', 'trial', 'paused', 'cancelled']),
-    trialEndDate: z.string(),
+    status: z.enum(['Active', 'Cancelled']),
   })
   .superRefine((data, context) => {
     if (data.serviceMode === 'catalog' && !data.serviceId) {
@@ -107,42 +107,64 @@ export const subscriptionSchema = z
     if (data.serviceMode === 'custom' && !data.customServiceName.trim()) {
       context.addIssue({
         code: 'custom',
-        message: 'Please enter a custom service name.',
+        message: 'Please enter a service name.',
         path: ['customServiceName'],
       });
     }
-    if ((data.status === 'active' || data.status === 'trial') && !data.nextRenewalDate) {
+    if (data.renewalDate && data.startDate && data.renewalDate < data.startDate) {
       context.addIssue({
         code: 'custom',
-        message: 'Next renewal date is required for active or trial subscriptions.',
-        path: ['nextRenewalDate'],
+        message: 'Renewal date must be on or after the start date.',
+        path: ['renewalDate'],
       });
     }
-    if (data.nextRenewalDate && data.startDate && data.nextRenewalDate < data.startDate) {
+    if (data.lastUsedDate && data.startDate && data.lastUsedDate < data.startDate) {
       context.addIssue({
         code: 'custom',
-        message: 'Next renewal date must be on or after the start date.',
-        path: ['nextRenewalDate'],
+        message: 'Last used date must be on or after the start date.',
+        path: ['lastUsedDate'],
       });
     }
-    if (data.status === 'trial' && !data.trialEndDate) {
-      context.addIssue({
-        code: 'custom',
-        message: 'Trial end date is required when status is trial.',
-        path: ['trialEndDate'],
-      });
+  });
+
+/** Request body for POST/PATCH /subscriptions from validated form values. */
+export function toSubscriptionPayload(values, services, { includeStatus = false } = {}) {
+  const serviceName =
+    values.serviceMode === 'catalog'
+      ? services.find((service) => service.id === values.serviceId)?.name
+      : values.customServiceName.trim();
+  const payload = {
+    billingCycle: values.billingCycle,
+    categoryId: values.categoryId,
+    cost: Number(values.cost),
+    currencyCode: values.currencyCode.toUpperCase(),
+    lastUsedDate: values.lastUsedDate || null,
+    notes: values.notes.trim() || null,
+    planName: values.planName.trim() || null,
+    renewalDate: values.renewalDate,
+    serviceName,
+    startDate: values.startDate,
+  };
+  if (includeStatus) payload.status = values.status;
+  return payload;
+}
+
+/** Final payment for POST /subscriptions/:id/cancel (both fields optional together). */
+export const cancelSchema = z
+  .object({
+    amount: z.string(),
+    includePayment: z.boolean(),
+    paymentDate: z.string(),
+  })
+  .superRefine((data, context) => {
+    if (!data.includePayment) return;
+    if (!(Number.isFinite(Number(data.amount)) && Number(data.amount) > 0)) {
+      context.addIssue({ code: 'custom', message: 'Amount must be greater than 0.', path: ['amount'] });
+    } else if (!twoDecimals(data.amount)) {
+      context.addIssue({ code: 'custom', message: 'Amount cannot have more than 2 decimal places.', path: ['amount'] });
     }
-    if (
-      data.status === 'trial' &&
-      data.trialEndDate &&
-      data.startDate &&
-      data.trialEndDate < data.startDate
-    ) {
-      context.addIssue({
-        code: 'custom',
-        message: 'Trial end date must be on or after the start date.',
-        path: ['trialEndDate'],
-      });
+    if (!isoDate.test(data.paymentDate)) {
+      context.addIssue({ code: 'custom', message: 'Enter the payment date.', path: ['paymentDate'] });
     }
   });
 

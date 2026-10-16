@@ -1,26 +1,24 @@
-import { formatEventDate, getLocalDate, isReminderEligible } from '../utils/reminderDates.js';
+import { formatEventDate, getUserToday, isReminderEligible } from '../utils/reminderDates.js';
 
 function createReminder(candidate, now) {
-  const trial = candidate.status === 'trial';
-  const targetEventDate = trial ? candidate.trialEndDate : candidate.nextRenewalDate;
-  const leadDays = trial ? candidate.trialReminderDays : candidate.renewalReminderDays;
-  const localDate = getLocalDate(now, candidate.timezone);
-  if (!isReminderEligible({ leadDays, localDate, targetDate: targetEventDate })) return null;
+  const targetEventDate = candidate.renewalDate;
+  // "Today" is the user's local date (same definition as GET /billing/upcoming).
+  const localDate = getUserToday(candidate.timezone, now);
+  if (
+    !isReminderEligible({ leadDays: candidate.renewalReminderDays, localDate, targetDate: targetEventDate })
+  ) {
+    return null;
+  }
 
-  const type = trial ? 'trial_expiration' : 'renewal';
   const formattedDate = formatEventDate(targetEventDate, candidate.timezone);
   return {
-    deduplicationKey: `${type}:${candidate.subscriptionId}:${targetEventDate}`,
-    message: trial
-      ? `Your ${candidate.serviceName} trial is scheduled to end on ${formattedDate}. Subscription information may have changed since this reminder was generated.`
-      : `Your ${candidate.serviceName} subscription is scheduled to renew on ${formattedDate}. Subscription information may have changed since this reminder was generated.`,
+    deduplicationKey: `renewal:${candidate.subscriptionId}:${targetEventDate}`,
+    message: `Your ${candidate.serviceName} subscription is scheduled to renew on ${formattedDate}. Subscription information may have changed since this reminder was generated.`,
     scheduledFor: now,
     subscriptionId: candidate.subscriptionId,
     targetEventDate,
-    title: trial
-      ? `${candidate.serviceName} trial ending soon`
-      : `${candidate.serviceName} renewal approaching`,
-    type,
+    title: `${candidate.serviceName} renewal approaching`,
+    type: 'renewal',
     userId: candidate.userId,
   };
 }
@@ -33,9 +31,9 @@ export function createReminderService(
     async runOnce() {
       const now = clock();
       const summary = { created: 0, duplicatesSkipped: 0, eligible: 0, errors: 0, examined: 0 };
-      let offset = 0;
+      let after = null;
       while (true) {
-        const candidates = await repository.findReminderCandidates({ limit: batchSize, offset });
+        const candidates = await repository.findReminderCandidates({ after, limit: batchSize });
         if (candidates.length === 0) break;
         summary.examined += candidates.length;
         for (const candidate of candidates) {
@@ -50,7 +48,8 @@ export function createReminderService(
           }
         }
         if (candidates.length < batchSize) break;
-        offset += batchSize;
+        const last = candidates.at(-1);
+        after = { subscriptionId: last.subscriptionId, userId: last.userId };
       }
       return summary;
     },

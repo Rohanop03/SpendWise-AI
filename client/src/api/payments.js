@@ -1,8 +1,9 @@
 import http from './http.js';
 
+/** Returns `{ payment, subscription }`; the subscription carries the advanced renewal date. */
 export async function createPayment(subscriptionId, payload) {
   const response = await http.post(`/subscriptions/${subscriptionId}/payments`, payload);
-  return response.data.payment;
+  return response.data;
 }
 
 export async function getPayments(params = {}) {

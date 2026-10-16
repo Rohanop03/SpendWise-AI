@@ -16,12 +16,13 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "test": "npm run test:unit && npm run test:db",
-    "test:unit": "node --test --test-concurrency=1 tests/database.test.js tests/health.test.js tests/recommendationEngine.test.js tests/reminder.test.js tests/reminderWorker.test.js",
+    "test:unit": "node --test --test-concurrency=1 tests/database.test.js tests/health.test.js tests/recommendationExplanation.test.js tests/reminder.test.js tests/reminderWorker.test.js",
     "test:db": "node --test --test-concurrency=1 tests/database.integration.test.js tests/auth.integration.test.js tests/subscription.integration.test.js tests/payment.integration.test.js tests/analytics.integration.test.js tests/notification.integration.test.js tests/recommendation.integration.test.js tests/advancedDb.integration.test.js tests/security.integration.test.js",
     "lint": "eslint src tests db scripts"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "compression": "^1.8.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^18.0.8",

@@ -97,8 +97,8 @@ export function createRefundRepository(database) {
             r.created_at,
             s.user_id
           FROM refunds r
-          JOIN payments p ON p.id = r.payment_id
-          JOIN subscriptions s ON s.id = p.subscription_id
+          JOIN payment_history p ON p.payment_id = r.payment_id
+          JOIN subscription s ON s.subscription_id = p.subscription_id
           WHERE r.id = $1
         `,
         [id],

@@ -6,9 +6,9 @@ function mapUser(row) {
   return {
     accountStatus: row.account_status,
     createdAt: row.created_at,
-    displayName: row.display_name,
     email: row.email,
-    id: String(row.id),
+    id: String(row.user_id),
+    name: row.name,
     updatedAt: row.updated_at,
   };
 }
@@ -24,8 +24,6 @@ function mapPreferences(row) {
     renewalReminderDays: row.renewal_reminder_days,
     renewalRemindersEnabled: row.renewal_reminders_enabled,
     timezone: row.timezone,
-    trialReminderDays: row.trial_reminder_days,
-    trialRemindersEnabled: row.trial_reminders_enabled,
     updatedAt: row.updated_at,
   };
 }
@@ -35,11 +33,11 @@ export function createAccountRepository(database) {
     async createUserWithPreferencesAndSession(transaction, input) {
       const userResult = await transaction.query(
         `
-          INSERT INTO users (display_name, email, password_hash)
+          INSERT INTO users (name, email, password_hash)
           VALUES ($1, $2, $3)
-          RETURNING id, display_name, email, account_status, created_at, updated_at
+          RETURNING user_id, name, email, account_status, created_at, updated_at
         `,
-        [input.displayName, input.email, input.passwordHash],
+        [input.name, input.email, input.passwordHash],
       );
       const user = mapUser(userResult.rows[0]);
 
@@ -68,7 +66,7 @@ export function createAccountRepository(database) {
     async findCredentialsByEmail(email) {
       const result = await database.query(
         `
-          SELECT id, display_name, email, password_hash, account_status, created_at, updated_at
+          SELECT user_id, name, email, password_hash, account_status, created_at, updated_at
           FROM users
           WHERE lower(email) = lower($1)
         `,
@@ -83,9 +81,9 @@ export function createAccountRepository(database) {
     async findUserById(userId) {
       const result = await database.query(
         `
-          SELECT id, display_name, email, account_status, created_at, updated_at
+          SELECT user_id, name, email, account_status, created_at, updated_at
           FROM users
-          WHERE id = $1
+          WHERE user_id = $1
         `,
         [userId],
       );
@@ -96,9 +94,9 @@ export function createAccountRepository(database) {
     async findActiveIdentity({ sessionId, userId }) {
       const result = await database.query(
         `
-          SELECT u.id, u.display_name, u.email, u.account_status, u.created_at, u.updated_at
+          SELECT u.user_id, u.name, u.email, u.account_status, u.created_at, u.updated_at
           FROM auth_sessions AS session
-          INNER JOIN users AS u ON u.id = session.user_id
+          INNER JOIN users AS u ON u.user_id = session.user_id
           WHERE session.id = $1
             AND session.user_id = $2
             AND session.revoked_at IS NULL
@@ -120,12 +118,12 @@ export function createAccountRepository(database) {
             session.expires_at,
             session.revoked_at,
             u.account_status,
-            u.display_name,
+            u.name,
             u.email,
             u.created_at,
             u.updated_at
           FROM auth_sessions AS session
-          INNER JOIN users AS u ON u.id = session.user_id
+          INNER JOIN users AS u ON u.user_id = session.user_id
           WHERE session.id = $1
           FOR UPDATE OF session
         `,
@@ -141,17 +139,24 @@ export function createAccountRepository(database) {
         refreshTokenHash: result.rows[0].refresh_token_hash.trim(),
         revokedAt: result.rows[0].revoked_at,
         sessionId: result.rows[0].id,
-        user: mapUser({ ...result.rows[0], id: result.rows[0].user_id }),
+        user: mapUser(result.rows[0]),
       };
     },
 
     async getPasswordHash(userId) {
       const result = await database.query(
-        `SELECT password_hash FROM users WHERE id = $1 AND account_status = 'active'`,
+        `SELECT password_hash FROM users WHERE user_id = $1 AND account_status = 'active'`,
         [userId],
       );
 
       return result.rows[0]?.password_hash ?? null;
+    },
+
+    async getTimezone(userId, client = database) {
+      const result = await client.query('SELECT timezone FROM user_preferences WHERE user_id = $1', [
+        userId,
+      ]);
+      return result.rows[0]?.timezone ?? 'UTC';
     },
 
     async getPreferences(userId) {
@@ -163,8 +168,6 @@ export function createAccountRepository(database) {
             notifications_enabled,
             renewal_reminders_enabled,
             renewal_reminder_days,
-            trial_reminders_enabled,
-            trial_reminder_days,
             updated_at
           FROM user_preferences
           WHERE user_id = $1
@@ -177,7 +180,7 @@ export function createAccountRepository(database) {
 
     async revokeAllSessionsAndChangePassword(transaction, { passwordHash, userId }) {
       await transaction.query(
-        `UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+        `UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2`,
         [passwordHash, userId],
       );
       await transaction.query(
@@ -222,8 +225,6 @@ export function createAccountRepository(database) {
             notifications_enabled = COALESCE($4, notifications_enabled),
             renewal_reminders_enabled = COALESCE($5, renewal_reminders_enabled),
             renewal_reminder_days = COALESCE($6, renewal_reminder_days),
-            trial_reminders_enabled = COALESCE($7, trial_reminders_enabled),
-            trial_reminder_days = COALESCE($8, trial_reminder_days),
             updated_at = CURRENT_TIMESTAMP
           WHERE user_id = $1
           RETURNING
@@ -232,8 +233,6 @@ export function createAccountRepository(database) {
             notifications_enabled,
             renewal_reminders_enabled,
             renewal_reminder_days,
-            trial_reminders_enabled,
-            trial_reminder_days,
             updated_at
         `,
         [
@@ -243,23 +242,21 @@ export function createAccountRepository(database) {
           preferences.notificationsEnabled ?? null,
           preferences.renewalRemindersEnabled ?? null,
           preferences.renewalReminderDays ?? null,
-          preferences.trialRemindersEnabled ?? null,
-          preferences.trialReminderDays ?? null,
         ],
       );
 
       return mapPreferences(result.rows[0]);
     },
 
-    async updateProfile(userId, { displayName }) {
+    async updateProfile(userId, { name }) {
       const result = await database.query(
         `
           UPDATE users
-          SET display_name = $2, updated_at = CURRENT_TIMESTAMP
-          WHERE id = $1 AND account_status = 'active'
-          RETURNING id, display_name, email, account_status, created_at, updated_at
+          SET name = $2, updated_at = CURRENT_TIMESTAMP
+          WHERE user_id = $1 AND account_status = 'active'
+          RETURNING user_id, name, email, account_status, created_at, updated_at
         `,
-        [userId, displayName],
+        [userId, name],
       );
 
       return mapUser(result.rows[0]);

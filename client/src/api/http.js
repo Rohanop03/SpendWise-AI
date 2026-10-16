@@ -1,7 +1,15 @@
 import axios from 'axios';
 
-const DEFAULT_API_BASE_URL = 'http://localhost:5000/api/v1';
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL;
+// Same-origin by default: in development Vite proxies /api to the backend (no CORS preflight).
+const DEFAULT_API_BASE_URL = '/api/v1';
+// Hosting dashboards often provide only the service origin; the API lives under /api/v1.
+const configuredBaseUrl = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(
+  /\/+$/,
+  '',
+);
+const apiBaseUrl = configuredBaseUrl.endsWith('/api/v1')
+  ? configuredBaseUrl
+  : `${configuredBaseUrl}/api/v1`;
 let accessToken = null;
 let authenticationFailureHandler = () => {};
 let refreshRequest = null;
@@ -119,8 +127,38 @@ http.interceptors.response.use(
   },
 );
 
+// Identical GETs that are already in flight share one request (e.g. two widgets asking for the
+// same list, or React StrictMode mounting an effect twice). Each caller can still abort on its
+// own: aborting only detaches that caller from the shared request.
+const inflightGets = new Map();
+const sendGet = http.get.bind(http);
+http.get = function dedupedGet(url, config = {}) {
+  const { signal, ...rest } = config;
+  const key = JSON.stringify([url, rest.params ?? null, rest.responseType ?? null, accessToken]);
+  let shared = inflightGets.get(key);
+  if (!shared) {
+    shared = sendGet(url, rest).finally(() => inflightGets.delete(key));
+    inflightGets.set(key, shared);
+  }
+  if (!signal) return shared;
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(new axios.CanceledError('canceled'));
+    if (signal.aborted) {
+      abort();
+      return;
+    }
+    signal.addEventListener('abort', abort, { once: true });
+    shared.then(resolve, reject);
+  });
+};
+
 export function getApiErrorMessage(error) {
   if (axios.isAxiosError(error)) {
+    // Field-level validation messages are more useful on a form than the generic summary.
+    const details = error.response?.data?.details;
+    if (Array.isArray(details) && details.length > 0 && details[0].message) {
+      return details.map((detail) => detail.message).join(' ');
+    }
     return error.response?.data?.message || 'The SpendWise API could not be reached.';
   }
 

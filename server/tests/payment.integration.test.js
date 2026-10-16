@@ -12,7 +12,7 @@ import { testAppConfig } from './helpers/testConfig.js';
 
 const origin = testAppConfig.corsOrigin;
 const password = 'correct horse battery staple';
-const expectedTestDatabaseName = 'spendwise_test';
+const expectedTestDatabaseName = 'smart_subscription_test';
 
 function csrfPost(client, path) {
   return client.post(path).set('Origin', origin).set('X-Requested-With', 'XMLHttpRequest');
@@ -20,7 +20,7 @@ function csrfPost(client, path) {
 
 async function registerUser(client, suffix = 'user1') {
   const response = await csrfPost(client, '/api/v1/auth/register').send({
-    displayName: `Stage 6 ${suffix}`,
+    name: `Stage 6 ${suffix}`,
     email: `stage6.${suffix}@example.invalid`,
     password,
   });
@@ -33,7 +33,7 @@ async function registerUser(client, suffix = 'user1') {
 
 if (!config.testDatabaseUrl) {
   test('payment integration tests require TEST_DATABASE_URL', {
-    skip: 'Set TEST_DATABASE_URL to the dedicated spendwise_test database.',
+    skip: 'Set TEST_DATABASE_URL to the dedicated smart_subscription_test database.',
   });
 } else {
   const database = createDatabase({ connectionString: config.testDatabaseUrl });
@@ -41,7 +41,6 @@ if (!config.testDatabaseUrl) {
 
   describe('payment, refund, and billing API integration', { concurrency: 1 }, () => {
     let categoriesList = [];
-    let servicesList = [];
     let userOne = null;
     let userTwo = null;
 
@@ -57,11 +56,8 @@ if (!config.testDatabaseUrl) {
       await runMigrations({ database });
       await seedCatalog(database);
 
-      const catResult = await database.query('SELECT id, name FROM categories ORDER BY name ASC');
+      const catResult = await database.query('SELECT category_id AS id, category_name AS name FROM category ORDER BY category_name ASC');
       categoriesList = catResult.rows;
-
-      const svcResult = await database.query('SELECT id, name FROM services ORDER BY name ASC');
-      servicesList = svcResult.rows;
     });
 
     after(async () => {
@@ -72,8 +68,8 @@ if (!config.testDatabaseUrl) {
       await database.withClient(async (client) => {
         await client.query('DELETE FROM subscription_audit_events');
         await client.query('DELETE FROM refunds');
-        await client.query('DELETE FROM payments');
-        await client.query('DELETE FROM subscriptions');
+        await client.query('DELETE FROM payment_history');
+        await client.query('DELETE FROM subscription');
         await client.query('DELETE FROM auth_sessions');
         await client.query('DELETE FROM user_preferences');
         await client.query('DELETE FROM users');
@@ -90,14 +86,13 @@ if (!config.testDatabaseUrl) {
         .post('/api/v1/subscriptions')
         .set('Authorization', `Bearer ${user.accessToken}`)
         .send({
-          billingCycle: 'monthly',
+          billingCycle: 'Monthly',
           categoryId: categoriesList[0].id,
           currencyCode: 'INR',
-          nextRenewalDate: '2026-11-01',
-          price: 499,
-          serviceId: servicesList[0].id,
+          renewalDate: '2026-11-01',
+          cost: 499,
+          serviceName: 'Test Service',
           startDate: '2026-10-01',
-          status: 'active',
           ...overrides,
         });
       assert.equal(res.status, 201, `Failed to create sub: ${JSON.stringify(res.body)}`);
@@ -485,93 +480,101 @@ if (!config.testDatabaseUrl) {
 
     test('calculates recurring monthly costs with currency separation and tracks upcoming renewals', async () => {
       const client = request(app);
+      const day = (offset) =>
+        new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
 
-      // Subscription 1: Monthly INR 600
+      // Monthly INR 600, renewing in 20 days
       await createTestSubscription(userOne, {
-        billingCycle: 'monthly',
         currencyCode: 'INR',
-        nextRenewalDate: '2026-11-05',
-        price: 600,
-        status: 'active',
+        renewalDate: day(20),
+        cost: 600,
+        startDate: day(-40),
       });
-
-      // Subscription 2: Quarterly INR 1,200 (Monthly equivalent = 400)
+      // Yearly INR 1,200 (monthly equivalent 100), renewing in 25 days
       await createTestSubscription(userOne, {
-        billingCycle: 'quarterly',
+        billingCycle: 'Yearly',
         currencyCode: 'INR',
-        nextRenewalDate: '2026-11-15',
-        price: 1200,
-        status: 'active',
+        renewalDate: day(25),
+        cost: 1200,
+        startDate: day(-340),
       });
-
-      // Subscription 3: Yearly USD 120 (Monthly equivalent = 10)
+      // Yearly USD 120 (monthly equivalent 10), outside the 30-day window
       await createTestSubscription(userOne, {
-        billingCycle: 'yearly',
+        billingCycle: 'Yearly',
         currencyCode: 'USD',
-        nextRenewalDate: '2026-12-01',
-        price: 120,
-        status: 'active',
+        renewalDate: day(60),
+        cost: 120,
+        startDate: day(-300),
       });
-
-      // Subscription 4: Paused monthly INR 500 (Must NOT count toward recurring cost)
-      await createTestSubscription(userOne, {
-        billingCycle: 'monthly',
+      // Cancelled monthly INR 500: must NOT count toward recurring cost
+      const cancelled = await createTestSubscription(userOne, {
         currencyCode: 'INR',
-        nextRenewalDate: '2026-11-20',
-        price: 500,
-        status: 'paused',
+        renewalDate: day(10),
+        cost: 500,
+        startDate: day(-50),
       });
-
-      // Subscription 5: Overdue active INR 300 (next renewal was in 2026-09-01)
+      await client
+        .patch(`/api/v1/subscriptions/${cancelled.id}`)
+        .set('Authorization', `Bearer ${userOne.accessToken}`)
+        .send({ status: 'Cancelled' });
+      // Overdue Active INR 300
       await createTestSubscription(userOne, {
-        billingCycle: 'monthly',
         currencyCode: 'INR',
-        nextRenewalDate: '2026-09-01',
-        price: 300,
-        startDate: '2026-08-01',
-        status: 'active',
+        renewalDate: day(-5),
+        cost: 300,
+        startDate: day(-60),
       });
 
-      // Fetch billing overview
       const overviewRes = await client
         .get('/api/v1/billing/overview?days=30')
         .set('Authorization', `Bearer ${userOne.accessToken}`);
       assert.equal(overviewRes.status, 200);
-
       const overview = overviewRes.body;
 
-      // 1. Recurring costs grouped separately by currency
-      // INR total = 600 (monthly) + 400 (quarterly 1200/3) + 300 (overdue active) = 1300.00 across 3 subs
-      // USD total = 10 (yearly 120/12) = 10.00 across 1 sub
+      // INR = 600 + 100 + 300 = 1000.00 across 3 Active subscriptions; USD = 10.00 across 1
       const inrCost = overview.recurringCosts.find((c) => c.currencyCode === 'INR');
       const usdCost = overview.recurringCosts.find((c) => c.currencyCode === 'USD');
-
-      assert.ok(inrCost, 'INR recurring costs should be present');
-      assert.equal(inrCost.monthlyEquivalent, '1300.00');
+      assert.equal(inrCost.monthlyEquivalent, '1000.00');
       assert.equal(inrCost.subscriptionCount, 3);
-
-      assert.ok(usdCost, 'USD recurring costs should be present');
       assert.equal(usdCost.monthlyEquivalent, '10.00');
       assert.equal(usdCost.subscriptionCount, 1);
 
-      // 2. Overdue renewals list has the overdue subscription flagged without inventing payments
+      // Overdue renewals are reported separately and are not upcoming reminders
       assert.equal(overview.overdueRenewals.length, 1);
       assert.equal(overview.overdueRenewals[0].isOverdue, true);
-      assert.equal(
-        overview.overdueRenewals[0].overdueNotice,
-        'Renewal date passed — payment status unconfirmed',
-      );
+      assert.equal(overview.stats.upcomingCount, 2);
 
-      // 3. Database should NOT have auto-created any payments for the overdue subscription
-      const paymentsCheck = await database.query('SELECT COUNT(*)::int AS count FROM payments');
+      // No payments are invented for the overdue subscription
+      const paymentsCheck = await database.query('SELECT COUNT(*)::int AS count FROM payment_history');
       assert.equal(paymentsCheck.rows[0].count, 0);
 
-      // 4. Upcoming renewals endpoint works independently
       const upcomingRes = await client
         .get('/api/v1/billing/upcoming?days=30')
         .set('Authorization', `Bearer ${userOne.accessToken}`);
       assert.equal(upcomingRes.status, 200);
-      assert.ok(upcomingRes.body.items.length >= 2);
+      assert.deepEqual(
+        upcomingRes.body.items.map((item) => item.cost),
+        ['600.00', '1200.00'],
+      );
+      assert.equal(upcomingRes.body.overdue.length, 1);
+    });
+
+    test('a completed payment advances the renewal date (FR5 trigger)', async () => {
+      const client = request(app);
+      const sub = await createTestSubscription(userOne, { renewalDate: '2026-11-01' });
+      const res = await client
+        .post(`/api/v1/subscriptions/${sub.id}/payments`)
+        .set('Authorization', `Bearer ${userOne.accessToken}`)
+        .send({ amount: '499.00', paymentDate: '2026-11-01' });
+      assert.equal(res.status, 201);
+      assert.equal(res.body.subscription.renewalDate, '2026-12-01');
+
+      const mismatch = await client
+        .post(`/api/v1/subscriptions/${sub.id}/payments`)
+        .set('Authorization', `Bearer ${userOne.accessToken}`)
+        .send({ amount: '1.00', currencyCode: 'USD', paymentDate: '2026-11-02' });
+      assert.equal(mismatch.status, 400);
+      assert.equal(mismatch.body.code, 'CURRENCY_MISMATCH');
     });
   });
 }

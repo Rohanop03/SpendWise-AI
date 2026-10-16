@@ -33,16 +33,20 @@ function csrfPost(client, path) {
 async function run() {
   console.log('🚀 Starting SpendWise AI 21-Workflow User Journey Verification...\n');
 
-  const connectionString = config.testDatabaseUrl || config.databaseUrl;
+  if (!config.testDatabaseUrl) {
+    throw new Error('TEST_DATABASE_URL is required: journey verification drops the public schema.');
+  }
+
+  const connectionString = config.testDatabaseUrl;
   const database = createDatabase({ connectionString });
 
   const identity = await database.query('SELECT current_database() AS name');
   const dbName = identity.rows[0].name;
   console.log(`📌 Target Database: ${dbName}`);
 
-  if (dbName === 'spendwise_dev') {
+  if (!dbName.endsWith('_test')) {
     throw new Error(
-      'Safety guard: Journey verification tests must never run on spendwise_dev directly.',
+      `Safety guard: journey verification drops the schema and runs only on a *_test database (connected to ${dbName}).`,
     );
   }
 
@@ -96,7 +100,7 @@ async function run() {
   // 2. User Registration
   await step(2, 'New User Registration with Password Hashing', async () => {
     const res = await csrfPost(client, '/api/v1/auth/register').send({
-      displayName: 'Journey User',
+      name: 'Journey User',
       email: 'journey.tester@example.invalid',
       password: 'StrongUserJourneyPass123!',
     });
@@ -150,19 +154,19 @@ async function run() {
       .post('/api/v1/subscriptions')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
-        billingCycle: 'monthly',
+        billingCycle: 'Monthly',
         categoryId: streamService.defaultCategoryId || categories[0].id,
+        cost: 19.99,
         currencyCode: 'USD',
-        nextRenewalDate: '2026-11-01',
         planName: 'Premium Family',
-        price: 19.99,
-        serviceId: streamService.id,
+        renewalDate: '2026-11-01',
+        serviceName: streamService.name,
         startDate: '2026-10-01',
-        status: 'active',
       });
     assert.equal(res.status, 201);
     catalogSub = res.body.subscription;
-    assert.equal(Number(catalogSub.price), 19.99);
+    assert.equal(catalogSub.cost, 19.99);
+    assert.equal(catalogSub.status, 'Active');
   });
 
   // 7. Create Custom Subscription
@@ -171,40 +175,38 @@ async function run() {
       .post('/api/v1/subscriptions')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
-        billingCycle: 'monthly',
+        billingCycle: 'Monthly',
         categoryId: categories[0].id,
+        cost: 85.0,
         currencyCode: 'USD',
-        customServiceName: 'Metro CrossFit Gym',
-        nextRenewalDate: '2026-11-15',
-        price: 85.0,
+        renewalDate: '2026-11-15',
+        serviceName: 'Metro CrossFit Gym',
         startDate: '2026-10-15',
-        status: 'active',
       });
     assert.equal(res.status, 201);
     customSub = res.body.subscription;
     assert.equal(customSub.serviceName, 'Metro CrossFit Gym');
   });
 
-  // 8. Create Trial Subscription
-  await step(8, 'Create Free Trial Subscription with Expiration Boundary', async () => {
+  // 8. Create a subscription with a recorded last-used date
+  await step(8, 'Create Subscription with a Last-Used Date (FR8 input)', async () => {
     const res = await client
       .post('/api/v1/subscriptions')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
-        billingCycle: 'monthly',
+        billingCycle: 'Yearly',
         categoryId: categories[0].id,
+        cost: 99.99,
         currencyCode: 'USD',
-        customServiceName: 'Cloud Storage Pro Trial',
-        nextRenewalDate: '2026-10-25',
-        price: 9.99,
-        startDate: '2026-10-11',
-        status: 'trial',
-        trialEndDate: '2026-10-25',
+        lastUsedDate: '2026-01-20',
+        renewalDate: '2027-01-11',
+        serviceName: 'Cloud Storage Pro',
+        startDate: '2026-01-11',
       });
     assert.equal(res.status, 201);
     trialSub = res.body.subscription;
-    assert.equal(trialSub.status, 'trial');
-    assert.equal(trialSub.trialEndDate, '2026-10-25');
+    assert.equal(trialSub.billingCycle, 'Yearly');
+    assert.equal(trialSub.lastUsedDate, '2026-01-20');
   });
 
   // 9. List Subscriptions with Search & Pagination
@@ -232,11 +234,11 @@ async function run() {
       .patch(`/api/v1/subscriptions/${catalogSub.id}`)
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
+        cost: 22.99,
         planName: 'Premium Family 4K HDR',
-        price: 22.99,
       });
     assert.equal(res.status, 200);
-    assert.equal(Number(res.body.subscription.price), 22.99);
+    assert.equal(res.body.subscription.cost, 22.99);
     catalogSub = res.body.subscription;
   });
 
@@ -258,6 +260,8 @@ async function run() {
     payment1 = res.body.payment;
     assert.equal(payment1.amount, '22.99');
     assert.equal(payment1.paymentStatus, 'completed');
+    // FR5: the payment trigger moved the renewal date one cycle past the payment.
+    assert.equal(res.body.subscription.renewalDate, '2026-12-01');
   });
 
   // 13. Record Second Payment

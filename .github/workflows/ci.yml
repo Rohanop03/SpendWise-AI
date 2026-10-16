@@ -15,7 +15,7 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: spendwise_test
+          POSTGRES_DB: smart_subscription_test
           POSTGRES_USER: spendwise_app
           POSTGRES_PASSWORD: ci_test_password
         ports:
@@ -28,8 +28,8 @@ jobs:
 
     env:
       NODE_ENV: test
-      TEST_DATABASE_URL: postgresql://spendwise_app:ci_test_password@localhost:5432/spendwise_test
-      DATABASE_URL: postgresql://spendwise_app:ci_test_password@localhost:5432/spendwise_test
+      TEST_DATABASE_URL: postgresql://spendwise_app:ci_test_password@localhost:5432/smart_subscription_test
+      DATABASE_URL: postgresql://spendwise_app:ci_test_password@localhost:5432/smart_subscription_test
       JWT_ACCESS_SECRET: github-actions-ci-secret-with-at-least-32-chars
       JWT_ACCESS_EXPIRES_IN: 15m
       COOKIE_SECURE: false

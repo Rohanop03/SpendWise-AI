@@ -26,7 +26,7 @@ export default function RenewalDial({ items, reminderDays = 7, windowDays = 30 }
       .domain([0, windowDays])
       .range([0, 2 * Math.PI])
       .clamp(true);
-    const values = items.map((item) => Number(item.monthlyEquivalent ?? item.price) || 0);
+    const values = items.map((item) => Number(item.monthlyEquivalent ?? item.cost) || 0);
     // Sizes compare only within a currency; amounts are never mixed across currencies.
     const maxByCurrency = new Map();
     items.forEach((item, index) => {
@@ -157,10 +157,10 @@ export default function RenewalDial({ items, reminderDays = 7, windowDays = 30 }
 
         {beads.map((bead, index) => {
           const { item } = bead;
-          const label = `${item.serviceName}, ${formatCurrency(item.price, item.currencyCode)}, ${
+          const label = `${item.serviceName}, ${formatCurrency(item.cost, item.currencyCode)}, ${
             item.isOverdue
               ? `renewal date passed ${Math.abs(item.daysUntilRenewal)} days ago`
-              : `renews ${dayjs(item.nextRenewalDate).format('D MMM')} (${relativeDays(item.daysUntilRenewal)})`
+              : `renews ${dayjs(item.renewalDate).format('D MMM')} (${relativeDays(item.daysUntilRenewal)})`
           }${bead.due ? ', inside your reminder window' : ''}`;
           return (
             <Link
@@ -199,7 +199,7 @@ export default function RenewalDial({ items, reminderDays = 7, windowDays = 30 }
             <div className="px-2">
               <p className="truncate text-sm font-bold">{current.item.serviceName}</p>
               <p className="num mt-1 text-xs">
-                {formatCurrency(current.item.price, current.item.currencyCode)}
+                {formatCurrency(current.item.cost, current.item.currencyCode)}
               </p>
             </div>
           ) : (
@@ -219,11 +219,11 @@ export default function RenewalDial({ items, reminderDays = 7, windowDays = 30 }
             }}
           >
             <GlassTip title={current.item.serviceName}>
-              <p className="num">{formatCurrency(current.item.price, current.item.currencyCode)}</p>
+              <p className="num">{formatCurrency(current.item.cost, current.item.currencyCode)}</p>
               <p className="mt-1">
                 {current.item.isOverdue
                   ? 'Date passed — payment unconfirmed'
-                  : `${dayjs(current.item.nextRenewalDate).format('ddd D MMM')} · ${relativeDays(current.item.daysUntilRenewal)}`}
+                  : `${dayjs(current.item.renewalDate).format('ddd D MMM')} · ${relativeDays(current.item.daysUntilRenewal)}`}
               </p>
             </GlassTip>
           </div>

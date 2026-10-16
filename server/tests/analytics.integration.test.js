@@ -12,7 +12,7 @@ import { testAppConfig } from './helpers/testConfig.js';
 
 const origin = testAppConfig.corsOrigin;
 const password = 'correct horse battery staple';
-const expectedTestDatabaseName = 'spendwise_test';
+const expectedTestDatabaseName = 'smart_subscription_test';
 
 function csrfPost(client, path) {
   return client.post(path).set('Origin', origin).set('X-Requested-With', 'XMLHttpRequest');
@@ -20,7 +20,7 @@ function csrfPost(client, path) {
 
 async function registerUser(client, suffix = 'user1') {
   const response = await csrfPost(client, '/api/v1/auth/register').send({
-    displayName: `Stage 7 ${suffix}`,
+    name: `Stage 7 ${suffix}`,
     email: `stage7.${suffix}@example.invalid`,
     password,
   });
@@ -33,7 +33,7 @@ async function registerUser(client, suffix = 'user1') {
 
 if (!config.testDatabaseUrl) {
   test('analytics integration tests require TEST_DATABASE_URL', {
-    skip: 'Set TEST_DATABASE_URL to the dedicated spendwise_test database.',
+    skip: 'Set TEST_DATABASE_URL to the dedicated smart_subscription_test database.',
   });
 } else {
   const database = createDatabase({ connectionString: config.testDatabaseUrl });
@@ -41,7 +41,6 @@ if (!config.testDatabaseUrl) {
 
   describe('spending analytics and SQL reporting integration', { concurrency: 1 }, () => {
     let categoriesList = [];
-    let servicesList = [];
     let userOne = null;
     let userTwo = null;
 
@@ -57,11 +56,8 @@ if (!config.testDatabaseUrl) {
       await runMigrations({ database });
       await seedCatalog(database);
 
-      const catResult = await database.query('SELECT id, name FROM categories ORDER BY name ASC');
+      const catResult = await database.query('SELECT category_id AS id, category_name AS name FROM category ORDER BY category_name ASC');
       categoriesList = catResult.rows;
-
-      const svcResult = await database.query('SELECT id, name FROM services ORDER BY name ASC');
-      servicesList = svcResult.rows;
     });
 
     after(async () => {
@@ -71,8 +67,8 @@ if (!config.testDatabaseUrl) {
     beforeEach(async () => {
       await database.withClient(async (client) => {
         await client.query('DELETE FROM refunds');
-        await client.query('DELETE FROM payments');
-        await client.query('DELETE FROM subscriptions');
+        await client.query('DELETE FROM payment_history');
+        await client.query('DELETE FROM subscription');
         await client.query('DELETE FROM auth_sessions');
         await client.query('DELETE FROM user_preferences');
         await client.query('DELETE FROM users');
@@ -98,14 +94,13 @@ if (!config.testDatabaseUrl) {
         .post('/api/v1/subscriptions')
         .set('Authorization', `Bearer ${userOne.accessToken}`)
         .send({
-          billingCycle: 'monthly',
+          billingCycle: 'Monthly',
           categoryId: categoriesList[0].id,
           currencyCode: 'INR',
-          nextRenewalDate: '2026-11-15',
-          price: '649.00',
-          serviceId: servicesList[0].id,
+          renewalDate: '2026-11-15',
+          cost: '649.00',
+          serviceName: 'Test Service',
           startDate: '2026-10-15',
-          status: 'active',
         });
       assert.equal(subRes.status, 201);
       const subId = subRes.body.subscription.id;
@@ -185,14 +180,13 @@ if (!config.testDatabaseUrl) {
         .post('/api/v1/subscriptions')
         .set('Authorization', `Bearer ${userOne.accessToken}`)
         .send({
-          billingCycle: 'monthly',
+          billingCycle: 'Monthly',
           categoryId: categoriesList[0].id,
           currencyCode: 'INR',
-          nextRenewalDate: '2026-11-15',
-          price: '1000.00',
-          serviceId: servicesList[0].id,
+          renewalDate: '2026-11-15',
+          cost: '1000.00',
+          serviceName: 'Test Service',
           startDate: '2026-10-15',
-          status: 'active',
         });
       assert.equal(inrSub.status, 201);
 
@@ -201,14 +195,13 @@ if (!config.testDatabaseUrl) {
         .post('/api/v1/subscriptions')
         .set('Authorization', `Bearer ${userOne.accessToken}`)
         .send({
-          billingCycle: 'yearly',
+          billingCycle: 'Yearly',
           categoryId: categoriesList[1].id,
           currencyCode: 'USD',
-          nextRenewalDate: '2027-10-15',
-          price: '120.00',
-          serviceId: servicesList[1].id,
+          renewalDate: '2027-10-15',
+          cost: '120.00',
+          serviceName: 'Test Service',
           startDate: '2026-10-15',
-          status: 'active',
         });
       assert.equal(usdSub.status, 201);
 
@@ -259,14 +252,13 @@ if (!config.testDatabaseUrl) {
         .post('/api/v1/subscriptions')
         .set('Authorization', `Bearer ${userOne.accessToken}`)
         .send({
-          billingCycle: 'monthly',
+          billingCycle: 'Monthly',
           categoryId: categoriesList[0].id,
           currencyCode: 'INR',
-          nextRenewalDate: '2026-11-01',
-          price: '1000.00',
-          serviceId: servicesList[0].id,
+          renewalDate: '2026-11-01',
+          cost: '1000.00',
+          serviceName: 'Test Service',
           startDate: '2026-01-01',
-          status: 'active',
         });
       const subId = subRes.body.subscription.id;
 
@@ -348,14 +340,13 @@ if (!config.testDatabaseUrl) {
         .post('/api/v1/subscriptions')
         .set('Authorization', `Bearer ${userOne.accessToken}`)
         .send({
-          billingCycle: 'monthly',
+          billingCycle: 'Monthly',
           categoryId: categoriesList[0].id,
           currencyCode: 'INR',
-          nextRenewalDate: '2026-11-01',
-          price: '800.00',
-          serviceId: servicesList[0].id,
+          renewalDate: '2026-11-01',
+          cost: '800.00',
+          serviceName: 'Test Service',
           startDate: '2026-01-01',
-          status: 'active',
         });
 
       // Create subscription in Category 1
@@ -363,14 +354,13 @@ if (!config.testDatabaseUrl) {
         .post('/api/v1/subscriptions')
         .set('Authorization', `Bearer ${userOne.accessToken}`)
         .send({
-          billingCycle: 'monthly',
+          billingCycle: 'Monthly',
           categoryId: categoriesList[1].id,
           currencyCode: 'INR',
-          nextRenewalDate: '2026-11-01',
-          price: '200.00',
-          serviceId: servicesList[1].id,
+          renewalDate: '2026-11-01',
+          cost: '200.00',
+          serviceName: 'Test Service',
           startDate: '2026-01-01',
-          status: 'active',
         });
 
       // Record payment of 800.00 for sub1
@@ -448,29 +438,27 @@ if (!config.testDatabaseUrl) {
         .post('/api/v1/subscriptions')
         .set('Authorization', `Bearer ${userOne.accessToken}`)
         .send({
-          billingCycle: 'monthly',
+          billingCycle: 'Monthly',
           categoryId: categoriesList[0].id,
           currencyCode: 'INR',
-          nextRenewalDate: '2026-11-01',
-          price: '300.00',
-          serviceId: servicesList[0].id,
+          renewalDate: '2026-11-01',
+          cost: '300.00',
+          serviceName: 'Test Service',
           startDate: '2026-01-01',
-          status: 'active',
         });
 
-      // Quarterly subscription: price 600 (monthly equiv 200), payment 600
+      // Yearly subscription: cost 2400 (monthly equiv 200), payment 600
       const subQ = await client
         .post('/api/v1/subscriptions')
         .set('Authorization', `Bearer ${userOne.accessToken}`)
         .send({
-          billingCycle: 'quarterly',
+          billingCycle: 'Yearly',
           categoryId: categoriesList[1].id,
           currencyCode: 'INR',
-          nextRenewalDate: '2026-11-01',
-          price: '600.00',
-          serviceId: servicesList[1].id,
+          renewalDate: '2026-11-01',
+          cost: '2400.00',
+          serviceName: 'Test Service',
           startDate: '2026-01-01',
-          status: 'active',
         });
 
       await client
@@ -495,7 +483,7 @@ if (!config.testDatabaseUrl) {
 
       // 1. Top subscriptions by recurring cost:
       // Monthly 300 has normalized monthly 300.00
-      // Quarterly 600 has normalized monthly 200.00 (600 / 3)
+      // Yearly 2400 has normalized monthly 200.00 (2400 / 12)
       // So subM outranks subQ in recurring cost!
       const topRec = await client
         .get('/api/v1/analytics/top-subscriptions?currencyCode=INR&type=recurring&limit=5')
@@ -522,17 +510,15 @@ if (!config.testDatabaseUrl) {
       assert.equal(cyclesRes.status, 200);
       assert.equal(cyclesRes.body.billingCycles.length, 2);
 
-      const monthlyCycle = cyclesRes.body.billingCycles.find((c) => c.billingCycle === 'monthly');
+      const monthlyCycle = cyclesRes.body.billingCycles.find((c) => c.billingCycle === 'Monthly');
       assert.equal(monthlyCycle.subscriptionCount, 1);
       assert.equal(monthlyCycle.estimatedMonthlyTotal, '300.00');
       assert.equal(monthlyCycle.estimatedYearlyTotal, '3600.00');
 
-      const quarterlyCycle = cyclesRes.body.billingCycles.find(
-        (c) => c.billingCycle === 'quarterly',
-      );
-      assert.equal(quarterlyCycle.subscriptionCount, 1);
-      assert.equal(quarterlyCycle.estimatedMonthlyTotal, '200.00');
-      assert.equal(quarterlyCycle.estimatedYearlyTotal, '2400.00');
+      const yearlyCycle = cyclesRes.body.billingCycles.find((c) => c.billingCycle === 'Yearly');
+      assert.equal(yearlyCycle.subscriptionCount, 1);
+      assert.equal(yearlyCycle.estimatedMonthlyTotal, '200.00');
+      assert.equal(yearlyCycle.estimatedYearlyTotal, '2400.00');
     });
 
     test('custom report and CSV export generate sanitized tabular outputs', async () => {
@@ -542,14 +528,13 @@ if (!config.testDatabaseUrl) {
         .post('/api/v1/subscriptions')
         .set('Authorization', `Bearer ${userOne.accessToken}`)
         .send({
-          billingCycle: 'monthly',
+          billingCycle: 'Monthly',
           categoryId: categoriesList[0].id,
           currencyCode: 'INR',
-          nextRenewalDate: '2026-11-01',
-          price: '500.00',
-          serviceId: servicesList[0].id,
+          renewalDate: '2026-11-01',
+          cost: '500.00',
+          serviceName: 'Test Service',
           startDate: '2026-01-01',
-          status: 'active',
         });
 
       await client
@@ -592,14 +577,13 @@ if (!config.testDatabaseUrl) {
         .post('/api/v1/subscriptions')
         .set('Authorization', `Bearer ${userOne.accessToken}`)
         .send({
-          billingCycle: 'monthly',
+          billingCycle: 'Monthly',
           categoryId: categoriesList[0].id,
           currencyCode: 'INR',
-          nextRenewalDate: '2026-11-01',
-          price: '999.00',
-          serviceId: servicesList[0].id,
+          renewalDate: '2026-11-01',
+          cost: '999.00',
+          serviceName: 'Test Service',
           startDate: '2026-01-01',
-          status: 'active',
         });
 
       await client

@@ -28,7 +28,10 @@ const initialFilters = {
   sortBy: 'createdAt',
   sortOrder: 'desc',
   status: '',
+  unusedDays: '',
 };
+
+const SEARCH_DEBOUNCE_MS = 250;
 
 function queryFor(activeTab, filters, pagination) {
   const params = {
@@ -42,6 +45,7 @@ function queryFor(activeTab, filters, pagination) {
   if (filters.status) params.status = filters.status;
   if (filters.categoryId) params.categoryId = filters.categoryId;
   if (filters.billingCycle) params.billingCycle = filters.billingCycle;
+  if (filters.unusedDays) params.unusedDays = filters.unusedDays;
   return params;
 }
 
@@ -63,6 +67,7 @@ export default function SubscriptionsPage() {
   const [archiveTarget, setArchiveTarget] = useState(null);
   const [isArchiving, setIsArchiving] = useState(false);
   const [filters, setFilters] = useState(initialFilters);
+  const [searchInput, setSearchInput] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const currentView = view || (phone ? 'cards' : 'table');
 
@@ -93,6 +98,14 @@ export default function SubscriptionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- page/limit are the pagination inputs
   }, [activeTab, filters, pagination.page, pagination.limit, reloadKey]);
 
+  // Typing updates the box immediately; the request waits for a pause in typing.
+  useEffect(() => {
+    if (searchInput === filters.search) return undefined;
+    const timer = setTimeout(() => handleFilterChange('search', searchInput), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the typed value drives this
+  }, [searchInput]);
+
   function handleFilterChange(key, value) {
     setLoading(true);
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -111,6 +124,7 @@ export default function SubscriptionsPage() {
 
   function handleResetFilters() {
     setLoading(true);
+    setSearchInput('');
     setFilters(initialFilters);
     setPagination((prev) => ({ ...prev, page: 1 }));
   }
@@ -121,37 +135,46 @@ export default function SubscriptionsPage() {
     setPagination((prev) => ({ ...prev, page: 1 }));
   }
 
+  // Optimistic: the row leaves the list at once and comes back if the server refuses.
   async function handleConfirmArchive() {
     if (!archiveTarget) return;
+    const target = archiveTarget;
+    const previous = { pagination, subscriptions };
     setIsArchiving(true);
+    setArchiveTarget(null);
+    setSubscriptions((items) => items.filter((item) => item.id !== target.id));
+    setPagination((prev) => ({ ...prev, totalCount: Math.max(0, prev.totalCount - 1) }));
     try {
-      await archiveSubscription(archiveTarget.id);
-      notify(`${archiveTarget.serviceName} archived.`, {
+      await archiveSubscription(target.id);
+      notify(`${target.serviceName} archived.`, {
         description: 'Find it under Archived; it can be restored any time.',
       });
-      setArchiveTarget(null);
-      const data = await getSubscriptions(queryFor(activeTab, filters, pagination));
-      setSubscriptions(data.items);
-      setPagination(data.pagination);
     } catch (err) {
-      const message = getApiErrorMessage(err);
-      setError(message);
-      notify('Could not archive the subscription.', { description: message, tone: 'error' });
+      setSubscriptions(previous.subscriptions);
+      setPagination(previous.pagination);
+      notify('Could not archive the subscription.', {
+        description: getApiErrorMessage(err),
+        tone: 'error',
+      });
     } finally {
       setIsArchiving(false);
     }
   }
 
   const isFiltered = Boolean(
-    filters.search || filters.status || filters.categoryId || filters.billingCycle,
+    filters.search ||
+      filters.status ||
+      filters.categoryId ||
+      filters.billingCycle ||
+      filters.unusedDays,
   );
 
-  // Estimated monthly cost of the visible active/trial plans, kept per currency (never mixed).
+  // Estimated monthly cost of the visible Active plans, kept per currency (never mixed).
   const monthlyByCurrency = subscriptions
-    .filter((sub) => sub.status === 'active' || sub.status === 'trial')
+    .filter((sub) => sub.status === 'Active')
     .reduce((totals, sub) => {
       totals[sub.currencyCode] =
-        (totals[sub.currencyCode] || 0) + calculateMonthlyEquivalent(sub.price, sub.billingCycle);
+        (totals[sub.currencyCode] || 0) + calculateMonthlyEquivalent(sub.cost, sub.billingCycle);
       return totals;
     }, {});
   const currencyTotals = Object.entries(monthlyByCurrency);
@@ -246,9 +269,9 @@ export default function SubscriptionsPage() {
                 aria-label="Search subscriptions"
                 className="min-w-0 flex-1 bg-transparent py-3 outline-none"
                 name="search"
-                onChange={(e) => handleFilterChange('search', e.target.value)}
+                onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search service or plan…"
-                value={filters.search}
+                value={searchInput}
               />
             </div>
             <div className="flex flex-wrap items-end gap-3">
@@ -280,10 +303,11 @@ export default function SubscriptionsPage() {
                     value={filters.sortBy}
                   >
                     <option value="createdAt">Date Added</option>
-                    <option value="nextRenewalDate">Renewal Date</option>
-                    <option value="price">Price</option>
+                    <option value="renewalDate">Renewal Date</option>
+                    <option value="cost">Cost</option>
                     <option value="serviceName">Name</option>
                     <option value="startDate">Start Date</option>
+                    <option value="lastUsedDate">Last Used</option>
                   </Select>
                 )}
               </Field>
@@ -303,22 +327,29 @@ export default function SubscriptionsPage() {
               onChange={(value) => handleFilterChange('status', value)}
               options={[
                 { label: 'All', value: '' },
-                { label: 'Active', value: 'active' },
-                { label: 'Trial', value: 'trial' },
-                { label: 'Paused', value: 'paused' },
-                { label: 'Cancelled', value: 'cancelled' },
+                { label: 'Active', value: 'Active' },
+                { label: 'Cancelled', value: 'Cancelled' },
               ]}
               size="sm"
               value={filters.status}
+            />
+            <Segmented
+              label="Usage"
+              onChange={(value) => handleFilterChange('unusedDays', value)}
+              options={[
+                { label: 'All', value: '' },
+                { label: 'Unused 60+ days', value: '60' },
+              ]}
+              size="sm"
+              value={filters.unusedDays}
             />
             <Segmented
               label="Billing cycle"
               onChange={(value) => handleFilterChange('billingCycle', value)}
               options={[
                 { label: 'All', value: '' },
-                { label: 'Monthly', value: 'monthly' },
-                { label: 'Quarterly', value: 'quarterly' },
-                { label: 'Yearly', value: 'yearly' },
+                { label: 'Monthly', value: 'Monthly' },
+                { label: 'Yearly', value: 'Yearly' },
               ]}
               size="sm"
               value={filters.billingCycle}

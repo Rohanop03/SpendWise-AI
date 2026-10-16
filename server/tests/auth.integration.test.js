@@ -9,12 +9,13 @@ import { createApp } from '../src/app.js';
 import { createDatabase } from '../src/config/db.js';
 import config from '../src/config/env.js';
 import { runMigrations } from '../src/db/migrationRunner.js';
+import { allMigrationIds } from './helpers/migrations.js';
 import { testAppConfig } from './helpers/testConfig.js';
 
 const origin = testAppConfig.corsOrigin;
 const password = 'correct horse battery staple';
 const newPassword = 'a newer secure passphrase';
-const expectedTestDatabaseName = 'spendwise_test';
+const expectedTestDatabaseName = 'smart_subscription_test';
 
 function csrfPost(client, path) {
   return client.post(path).set('Origin', origin).set('X-Requested-With', 'XMLHttpRequest');
@@ -26,7 +27,7 @@ function firstCookie(response) {
 
 async function register(client, suffix = 'primary') {
   return csrfPost(client, '/api/v1/auth/register').send({
-    displayName: `Stage Four ${suffix}`,
+    name: `Stage Four ${suffix}`,
     email: `stage4.${suffix}@example.invalid`,
     password,
   });
@@ -34,7 +35,7 @@ async function register(client, suffix = 'primary') {
 
 if (!config.testDatabaseUrl) {
   test('authentication integration tests require TEST_DATABASE_URL', {
-    skip: 'Set TEST_DATABASE_URL to the dedicated spendwise_test database.',
+    skip: 'Set TEST_DATABASE_URL to the dedicated smart_subscription_test database.',
   });
 } else {
   const database = createDatabase({ connectionString: config.testDatabaseUrl });
@@ -51,13 +52,7 @@ if (!config.testDatabaseUrl) {
       });
 
       const migrations = await runMigrations({ database });
-      assert.deepEqual(migrations.applied, [
-        '001_initial_schema',
-        '002_auth_sessions',
-        '003_notification_target_dates',
-        '004_ai_cost_optimization',
-        '005_advanced_dbms',
-      ]);
+      assert.deepEqual(migrations.applied, allMigrationIds);
     });
 
     beforeEach(async () => {
@@ -88,8 +83,8 @@ if (!config.testDatabaseUrl) {
         `
           SELECT u.password_hash, p.preferred_currency, p.timezone, count(s.id)::INTEGER AS sessions
           FROM users AS u
-          INNER JOIN user_preferences AS p ON p.user_id = u.id
-          LEFT JOIN auth_sessions AS s ON s.user_id = u.id
+          INNER JOIN user_preferences AS p ON p.user_id = u.user_id
+          LEFT JOIN auth_sessions AS s ON s.user_id = u.user_id
           WHERE u.email = $1
           GROUP BY u.password_hash, p.preferred_currency, p.timezone
         `,
@@ -109,7 +104,7 @@ if (!config.testDatabaseUrl) {
       assert.equal((await register(agent, 'duplicate')).status, 201);
 
       const duplicate = await csrfPost(request(app), '/api/v1/auth/register').send({
-        displayName: 'Duplicate',
+        name: 'Duplicate',
         email: 'STAGE4.DUPLICATE@EXAMPLE.INVALID',
         password,
       });
@@ -117,12 +112,12 @@ if (!config.testDatabaseUrl) {
       assert.equal(duplicate.body.code, 'EMAIL_IN_USE');
 
       const invalidEmail = await csrfPost(request(app), '/api/v1/auth/register').send({
-        displayName: 'Invalid',
+        name: 'Invalid',
         email: 'not-an-email',
         password,
       });
       const weakPassword = await csrfPost(request(app), '/api/v1/auth/register').send({
-        displayName: 'Invalid',
+        name: 'Invalid',
         email: 'weak@example.invalid',
         password: 'too-short',
       });
@@ -307,14 +302,14 @@ if (!config.testDatabaseUrl) {
       const profile = await request(app)
         .patch('/api/v1/users/me')
         .set('Authorization', `Bearer ${firstToken}`)
-        .send({ displayName: 'Updated Owner' });
+        .send({ name: 'Updated Owner' });
       assert.equal(profile.status, 200);
-      assert.equal(profile.body.user.displayName, 'Updated Owner');
+      assert.equal(profile.body.user.name, 'Updated Owner');
 
       const invalidProfile = await request(app)
         .patch('/api/v1/users/me')
         .set('Authorization', `Bearer ${firstToken}`)
-        .send({ displayName: 'Injection', userId: second.body.user.id });
+        .send({ name: 'Injection', userId: second.body.user.id });
       assert.equal(invalidProfile.status, 400);
 
       const defaults = await request(app)
@@ -338,10 +333,10 @@ if (!config.testDatabaseUrl) {
         .send({ renewalReminderDays: 366 });
       assert.equal(invalid.status, 400);
 
-      const secondUser = await database.query(`SELECT display_name FROM users WHERE id = $1`, [
+      const secondUser = await database.query(`SELECT name FROM users WHERE user_id = $1`, [
         second.body.user.id,
       ]);
-      assert.equal(secondUser.rows[0].display_name, 'Stage Four owner-two');
+      assert.equal(secondUser.rows[0].name, 'Stage Four owner-two');
     });
 
     test('changes passwords securely and revokes every existing session', async () => {

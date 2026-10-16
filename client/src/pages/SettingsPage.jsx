@@ -19,7 +19,6 @@ import { Card, CardHeader } from '../ui/Surface.jsx';
 const toggles = [
   ['notificationsEnabled', 'Enable in-app notifications'],
   ['renewalRemindersEnabled', 'Enable renewal reminders'],
-  ['trialRemindersEnabled', 'Enable trial reminders'],
 ];
 
 /** Neumorphic switch: pressed + ink thumb when on, with a text state for non-visual users. */
@@ -64,8 +63,6 @@ function PreferencesForm({ initial }) {
         renewalReminderDays: values.renewalReminderDays,
         renewalRemindersEnabled: values.renewalRemindersEnabled,
         timezone: values.timezone,
-        trialReminderDays: values.trialReminderDays,
-        trialRemindersEnabled: values.trialRemindersEnabled,
       });
       reset(updated);
       setMessage({ text: 'Preferences updated.', tone: 'success' });
@@ -122,24 +119,6 @@ function PreferencesForm({ initial }) {
               min="0"
               type="number"
               {...register('renewalReminderDays', { valueAsNumber: true })}
-            />
-          )}
-        </Field>
-        <Field
-          error={errors.trialReminderDays?.message}
-          hint="0–365 days before a trial ends"
-          label="Trial reminder days"
-        >
-          {(id, describedBy, invalid) => (
-            <Input
-              aria-describedby={describedBy}
-              id={id}
-              inputMode="numeric"
-              invalid={invalid}
-              max="365"
-              min="0"
-              type="number"
-              {...register('trialReminderDays', { valueAsNumber: true })}
             />
           )}
         </Field>

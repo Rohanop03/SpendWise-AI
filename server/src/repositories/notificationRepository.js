@@ -24,43 +24,38 @@ export function createNotificationRepository(database) {
       return result.rows[0].count;
     },
 
-    async findReminderCandidates({ limit, offset }) {
+    /**
+     * Active subscriptions whose owner wants renewal reminders, in (user_id, subscription_id)
+     * order. Keyset pagination: pass the last row's key as `after` to get the next page.
+     */
+    async findReminderCandidates({ after = null, limit }) {
       const result = await database.query(
         `
           SELECT
-            s.id AS subscription_id,
+            s.subscription_id,
             s.user_id,
-            COALESCE(svc.name, s.custom_service_name) AS service_name,
-            s.status,
-            s.next_renewal_date::text AS next_renewal_date,
-            s.trial_end_date::text AS trial_end_date,
+            s.service_name,
+            s.renewal_date::text AS renewal_date,
             p.timezone,
-            p.renewal_reminder_days,
-            p.trial_reminder_days
-          FROM subscriptions AS s
+            p.renewal_reminder_days
+          FROM subscription AS s
           INNER JOIN user_preferences AS p ON p.user_id = s.user_id
-          LEFT JOIN services AS svc ON svc.id = s.service_id
           WHERE s.archived_at IS NULL
+            AND s.status = 'Active'
             AND p.notifications_enabled = TRUE
-            AND (
-              (s.status = 'active' AND p.renewal_reminders_enabled = TRUE AND s.next_renewal_date IS NOT NULL)
-              OR
-              (s.status = 'trial' AND p.trial_reminders_enabled = TRUE AND s.trial_end_date IS NOT NULL)
-            )
-          ORDER BY s.user_id, s.id
-          LIMIT $1 OFFSET $2
+            AND p.renewal_reminders_enabled = TRUE
+            AND ($2::int IS NULL OR (s.user_id, s.subscription_id) > ($2::int, $3::int))
+          ORDER BY s.user_id, s.subscription_id
+          LIMIT $1
         `,
-        [limit, offset],
+        [limit, after?.userId ?? null, after?.subscriptionId ?? null],
       );
       return result.rows.map((row) => ({
-        nextRenewalDate: row.next_renewal_date,
+        renewalDate: row.renewal_date,
         renewalReminderDays: row.renewal_reminder_days,
         serviceName: row.service_name,
-        status: row.status,
         subscriptionId: String(row.subscription_id),
         timezone: row.timezone,
-        trialEndDate: row.trial_end_date,
-        trialReminderDays: row.trial_reminder_days,
         userId: String(row.user_id),
       }));
     },

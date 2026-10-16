@@ -128,10 +128,10 @@ export default function RenewalTimeline({ items, windowDays = 30 }) {
                   </span>
                   <span className="min-w-0 truncate text-xs font-bold">{item.serviceName}</span>
                   <span className="sr-only">
-                    , {formatCurrency(item.price, item.currencyCode)},{' '}
+                    , {formatCurrency(item.cost, item.currencyCode)},{' '}
                     {item.isOverdue
                       ? 'renewal date passed, payment unconfirmed'
-                      : `renews ${dayjs(item.nextRenewalDate).format('D MMM')}, ${relativeDays(item.daysUntilRenewal)}`}
+                      : `renews ${dayjs(item.renewalDate).format('D MMM')}, ${relativeDays(item.daysUntilRenewal)}`}
                   </span>
                 </Link>
               </li>

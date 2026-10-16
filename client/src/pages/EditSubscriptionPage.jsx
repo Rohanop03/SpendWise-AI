@@ -5,6 +5,7 @@ import { getCategories, getServices } from '../api/catalog.js';
 import { getApiErrorMessage } from '../api/http.js';
 import { getSubscription, updateSubscription } from '../api/subscriptions.js';
 import SubscriptionForm from '../components/subscriptions/SubscriptionForm.jsx';
+import { toSubscriptionPayload } from '../forms/schemas.js';
 import { pageIndex } from '../layout/nav.js';
 import { CardSkeleton, EmptyState, InlineError } from '../ui/Feedback.jsx';
 import { PageHeader } from '../ui/Page.jsx';
@@ -25,21 +26,27 @@ export default function EditSubscriptionPage() {
         setState({
           archived: Boolean(sub.archivedAt),
           categories: cats,
-          defaults: {
-            billingCycle: sub.billingCycle,
-            categoryId: String(sub.categoryId),
-            currencyCode: sub.currencyCode,
-            customServiceName: sub.customServiceName || '',
-            nextRenewalDate: sub.nextRenewalDate || '',
-            notes: sub.notes || '',
-            planName: sub.planName || '',
-            price: String(sub.price),
-            serviceId: sub.serviceId ? String(sub.serviceId) : '',
-            serviceMode: sub.serviceId ? 'catalog' : 'custom',
-            startDate: sub.startDate,
-            status: sub.status,
-            trialEndDate: sub.trialEndDate || '',
-          },
+          defaults: (() => {
+            // A name that matches a catalog service opens in catalog mode.
+            const catalogMatch = svcs.find(
+              (svc) => svc.name.toLowerCase() === sub.serviceName.toLowerCase(),
+            );
+            return {
+              billingCycle: sub.billingCycle,
+              categoryId: String(sub.categoryId),
+              cost: String(sub.cost),
+              currencyCode: sub.currencyCode,
+              customServiceName: catalogMatch ? '' : sub.serviceName,
+              lastUsedDate: sub.lastUsedDate || '',
+              notes: sub.notes || '',
+              planName: sub.planName || '',
+              renewalDate: sub.renewalDate,
+              serviceId: catalogMatch ? catalogMatch.id : '',
+              serviceMode: catalogMatch ? 'catalog' : 'custom',
+              startDate: sub.startDate,
+              status: sub.status,
+            };
+          })(),
           error: '',
           loading: false,
           name: sub.serviceName,
@@ -51,26 +58,7 @@ export default function EditSubscriptionPage() {
 
   async function handleSubmit(values) {
     setError('');
-    // Same full PATCH payload as before, with explicit nulls for cleared fields.
-    const payload = {
-      billingCycle: values.billingCycle,
-      categoryId: values.categoryId,
-      currencyCode: values.currencyCode.toUpperCase(),
-      nextRenewalDate: values.nextRenewalDate || null,
-      notes: values.notes.trim() || null,
-      planName: values.planName.trim() || null,
-      price: Number(values.price),
-      startDate: values.startDate,
-      status: values.status,
-      trialEndDate: values.status === 'trial' ? values.trialEndDate || null : null,
-    };
-    if (values.serviceMode === 'catalog') {
-      payload.serviceId = values.serviceId;
-      payload.customServiceName = null;
-    } else {
-      payload.customServiceName = values.customServiceName.trim();
-      payload.serviceId = null;
-    }
+    const payload = toSubscriptionPayload(values, state.services, { includeStatus: true });
 
     try {
       await updateSubscription(id, payload);
@@ -121,6 +109,7 @@ export default function EditSubscriptionPage() {
             defaultValues={state.defaults}
             onSubmit={handleSubmit}
             services={state.services}
+            showStatus
             submitLabel="Save Changes"
             submittingLabel="Saving…"
           />

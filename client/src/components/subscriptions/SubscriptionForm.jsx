@@ -1,15 +1,16 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 
-import { computeRenewalDate } from '../../forms/renewal.js';
+import { computeRenewalDate, localToday } from '../../forms/renewal.js';
 import { subscriptionSchema } from '../../forms/schemas.js';
 import { Field, FormMessage, Input, Select, Textarea } from '../../ui/Field.jsx';
 import { Pill, PillLink } from '../../ui/Pill.jsx';
 import Segmented from '../../ui/Segmented.jsx';
 
 /**
- * Add / edit subscription form. Field names, defaults and the submitted payload shape are
- * decided by the page (`onSubmit` receives validated values), exactly as before.
+ * Add / edit subscription form. The page decides defaults and turns the validated values into
+ * the API payload (`toSubscriptionPayload`). Status is only editable on an existing record;
+ * new subscriptions start Active.
  */
 export default function SubscriptionForm({
   apiError,
@@ -18,6 +19,7 @@ export default function SubscriptionForm({
   defaultValues,
   onSubmit,
   services,
+  showStatus = false,
   submitLabel,
   submittingLabel,
 }) {
@@ -30,10 +32,7 @@ export default function SubscriptionForm({
     setValue,
   } = useForm({ defaultValues, resolver: zodResolver(subscriptionSchema) });
 
-  const [serviceMode, status, startDate] = useWatch({
-    control,
-    name: ['serviceMode', 'status', 'startDate'],
-  });
+  const [serviceMode, startDate] = useWatch({ control, name: ['serviceMode', 'startDate'] });
   const serviceField = register('serviceId');
 
   function switchMode(mode) {
@@ -104,7 +103,7 @@ export default function SubscriptionForm({
                 aria-describedby={describedBy}
                 id={id}
                 invalid={invalid}
-                maxLength={120}
+                maxLength={100}
                 placeholder="e.g. Local Gym, Private Newsletter, Cloud VPS"
                 {...register('customServiceName')}
               />
@@ -145,7 +144,7 @@ export default function SubscriptionForm({
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
-        <Field error={errors.price?.message} id="price" label="Price">
+        <Field error={errors.cost?.message} id="cost" label="Cost">
           {(id, describedBy, invalid) => (
             <Input
               aria-describedby={describedBy}
@@ -153,11 +152,11 @@ export default function SubscriptionForm({
               id={id}
               inputMode="decimal"
               invalid={invalid}
-              min="0"
+              min="0.01"
               placeholder="0.00"
               step="0.01"
               type="number"
-              {...register('price')}
+              {...register('cost')}
             />
           )}
         </Field>
@@ -189,32 +188,31 @@ export default function SubscriptionForm({
             label="Billing Cycle"
             onChange={field.onChange}
             options={[
-              { label: 'Monthly', value: 'monthly' },
-              { label: 'Quarterly', value: 'quarterly' },
-              { label: 'Yearly', value: 'yearly' },
+              { label: 'Monthly', value: 'Monthly' },
+              { label: 'Yearly', value: 'Yearly' },
             ]}
             value={field.value}
           />
         )}
       />
 
-      <Controller
-        control={control}
-        name="status"
-        render={({ field }) => (
-          <Segmented
-            label="Status"
-            onChange={field.onChange}
-            options={[
-              { label: 'Active', value: 'active' },
-              { label: 'Trial', value: 'trial' },
-              { label: 'Paused', value: 'paused' },
-              { label: 'Cancelled', value: 'cancelled' },
-            ]}
-            value={field.value}
-          />
-        )}
-      />
+      {showStatus && (
+        <Controller
+          control={control}
+          name="status"
+          render={({ field }) => (
+            <Segmented
+              label="Status"
+              onChange={field.onChange}
+              options={[
+                { label: 'Active', value: 'Active' },
+                { label: 'Cancelled', value: 'Cancelled' },
+              ]}
+              value={field.value}
+            />
+          )}
+        />
+      )}
 
       <div className="grid gap-5 sm:grid-cols-2">
         <Field error={errors.startDate?.message} id="startDate" label="Start Date">
@@ -234,7 +232,7 @@ export default function SubscriptionForm({
               className="text-xs font-bold underline underline-offset-4"
               onClick={() =>
                 setValue(
-                  'nextRenewalDate',
+                  'renewalDate',
                   computeRenewalDate(getValues('startDate'), getValues('billingCycle')),
                   {
                     shouldValidate: true,
@@ -246,14 +244,10 @@ export default function SubscriptionForm({
               Auto-fill
             </button>
           }
-          error={errors.nextRenewalDate?.message}
-          hint={
-            status === 'active' || status === 'trial'
-              ? 'Required for active and trial subscriptions.'
-              : undefined
-          }
-          id="nextRenewalDate"
-          label="Next Renewal"
+          error={errors.renewalDate?.message}
+          hint="Moves forward automatically each time a payment is recorded."
+          id="renewalDate"
+          label="Renewal Date"
         >
           {(id, describedBy, invalid) => (
             <Input
@@ -262,26 +256,39 @@ export default function SubscriptionForm({
               invalid={invalid}
               min={startDate || undefined}
               type="date"
-              {...register('nextRenewalDate')}
+              {...register('renewalDate')}
             />
           )}
         </Field>
       </div>
 
-      {status === 'trial' && (
-        <Field error={errors.trialEndDate?.message} id="trialEndDate" label="Trial End Date">
-          {(id, describedBy, invalid) => (
-            <Input
-              aria-describedby={describedBy}
-              id={id}
-              invalid={invalid}
-              min={startDate || undefined}
-              type="date"
-              {...register('trialEndDate')}
-            />
-          )}
-        </Field>
-      )}
+      <Field
+        action={
+          <button
+            className="text-xs font-bold underline underline-offset-4"
+            onClick={() => setValue('lastUsedDate', localToday(), { shouldValidate: true })}
+            type="button"
+          >
+            Today
+          </button>
+        }
+        error={errors.lastUsedDate?.message}
+        hint="Subscriptions unused for more than 60 days are flagged as cancel candidates."
+        id="lastUsedDate"
+        label="Last Used (Optional)"
+      >
+        {(id, describedBy, invalid) => (
+          <Input
+            aria-describedby={describedBy}
+            id={id}
+            invalid={invalid}
+            max={localToday()}
+            min={startDate || undefined}
+            type="date"
+            {...register('lastUsedDate')}
+          />
+        )}
+      </Field>
 
       <Field error={errors.notes?.message} id="notes" label="Notes (Optional)">
         {(id, describedBy, invalid) => (

@@ -11,7 +11,7 @@ export function createNotificationController(service) {
     },
     markRead: async (request, response) => {
       response.status(200).json({
-        notification: await service.markRead(request.user.id, request.params.id),
+        notification: await service.markRead(request.user.id, request.validatedParams.id),
       });
     },
   };

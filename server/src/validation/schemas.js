@@ -6,12 +6,12 @@ import {
   minimumPasswordCharacters,
 } from '../utils/password.js';
 
-const displayName = z.string().trim().min(1).max(100);
+const name = z.string().trim().min(1).max(100);
 const email = z
   .string()
   .trim()
   .email()
-  .max(320)
+  .max(150)
   .transform((value) => value.toLowerCase());
 const password = z
   .string()
@@ -39,7 +39,7 @@ const timezone = z
     { message: 'Timezone must be a valid IANA timezone identifier.' },
   );
 
-export const registerSchema = z.object({ displayName, email, password }).strict();
+export const registerSchema = z.object({ email, name, password }).strict();
 
 export const loginSchema = z.object({ email, password: z.string().min(1).max(256) }).strict();
 
@@ -51,7 +51,7 @@ export const changePasswordSchema = z
     path: ['newPassword'],
   });
 
-export const profileUpdateSchema = z.object({ displayName }).strict();
+export const profileUpdateSchema = z.object({ name }).strict();
 
 export const preferencesUpdateSchema = z
   .object({
@@ -63,8 +63,6 @@ export const preferencesUpdateSchema = z
     renewalReminderDays: z.number().int().min(0).max(365).optional(),
     renewalRemindersEnabled: z.boolean().optional(),
     timezone: timezone.optional(),
-    trialReminderDays: z.number().int().min(0).max(365).optional(),
-    trialRemindersEnabled: z.boolean().optional(),
   })
   .strict()
   .refine((values) => Object.keys(values).length > 0, {
@@ -88,175 +86,114 @@ export const validDateString = z
     { message: 'Date must be a valid calendar date.' },
   );
 
+// Identifiers are PostgreSQL INT: 1 .. 2147483647.
+export const maximumEntityId = 2147483647;
 export const entityId = z
-  .union([z.string().regex(/^\d+$/), z.number().int().positive()])
-  .transform(String);
+  .union([z.string().regex(/^[1-9]\d{0,9}$/), z.number().int().positive()])
+  .transform(String)
+  .refine((value) => Number(value) <= maximumEntityId, 'Identifier is out of range.');
+
+export const idParamsSchema = z.object({ id: entityId }).strict();
+
+// Spec value sets (PostgreSQL ENUM labels, used verbatim in the API).
+export const billingCycles = ['Monthly', 'Yearly'];
+export const subscriptionStatuses = ['Active', 'Cancelled'];
+export const recommendationStatuses = ['Pending', 'Reviewed', 'Dismissed'];
+export const recommendationRules = [
+  'unused_subscription',
+  'above_category_average',
+  'duplicate_category',
+];
+
+const currencyCode = z
+  .string()
+  .trim()
+  .regex(/^[A-Z]{3}$/, 'Currency code must be a 3-letter ISO code.');
+const serviceName = z.string().trim().min(1).max(100);
+const cost = z
+  .union([z.number(), z.string()])
+  .pipe(
+    z.coerce
+      .number()
+      .positive('Cost must be greater than 0.')
+      .max(999999.99, 'Cost must be below 1,000,000.')
+      .refine(
+        (value) => Math.abs(Math.round(value * 100) - value * 100) < 1e-6,
+        'Cost cannot have more than 2 decimal places.',
+      ),
+  );
 
 export const createSubscriptionSchema = z
   .object({
-    billingCycle: z.enum(['monthly', 'quarterly', 'yearly']),
+    billingCycle: z.enum(billingCycles),
     categoryId: entityId,
-    currencyCode: z
-      .string()
-      .trim()
-      .regex(/^[A-Z]{3}$/, 'Currency code must be a 3-letter ISO code.'),
-    customServiceName: z.string().trim().min(1).max(120).nullable().optional(),
-    nextRenewalDate: validDateString.nullable().optional(),
+    cost,
+    currencyCode,
+    lastUsedDate: validDateString.nullable().optional(),
     notes: z.string().max(2000).nullable().optional(),
     planName: z.string().trim().min(1).max(120).nullable().optional(),
-    price: z
-      .union([z.number(), z.string()])
-      .pipe(z.coerce.number().min(0, 'Price must be 0 or greater.')),
-    serviceId: entityId.nullable().optional(),
+    renewalDate: validDateString,
+    serviceName,
     startDate: validDateString,
-    status: z.enum(['trial', 'active', 'paused', 'cancelled']).default('active'),
-    trialEndDate: validDateString.nullable().optional(),
   })
   .strict()
-  .refine(
-    (data) => {
-      const hasService = Boolean(data.serviceId);
-      const hasCustom = Boolean(data.customServiceName && data.customServiceName.trim().length > 0);
-      return (hasService && !hasCustom) || (!hasService && hasCustom);
-    },
-    {
-      message: 'Provide either a catalog service or a custom service name, not both.',
-      path: ['serviceId'],
-    },
-  )
-  .refine(
-    (data) => {
-      if (data.status === 'trial' || data.status === 'active') {
-        return Boolean(data.nextRenewalDate);
-      }
-      return true;
-    },
-    {
-      message: 'Next renewal date is required for active or trial subscriptions.',
-      path: ['nextRenewalDate'],
-    },
-  )
-  .refine(
-    (data) => {
-      if (data.nextRenewalDate && data.startDate) {
-        return data.nextRenewalDate >= data.startDate;
-      }
-      return true;
-    },
-    {
-      message: 'Next renewal date must be on or after the start date.',
-      path: ['nextRenewalDate'],
-    },
-  )
-  .refine(
-    (data) => {
-      if (data.status === 'trial') {
-        return Boolean(data.trialEndDate);
-      }
-      return true;
-    },
-    {
-      message: 'Trial end date is required when status is trial.',
-      path: ['trialEndDate'],
-    },
-  )
-  .refine(
-    (data) => {
-      if (data.trialEndDate && data.startDate) {
-        return data.trialEndDate >= data.startDate;
-      }
-      return true;
-    },
-    {
-      message: 'Trial end date must be on or after the start date.',
-      path: ['trialEndDate'],
-    },
-  );
+  .refine((data) => data.renewalDate >= data.startDate, {
+    message: 'Renewal date must be on or after the start date.',
+    path: ['renewalDate'],
+  })
+  .refine((data) => !data.lastUsedDate || data.lastUsedDate >= data.startDate, {
+    message: 'Last used date must be on or after the start date.',
+    path: ['lastUsedDate'],
+  });
 
 export const updateSubscriptionSchema = z
   .object({
-    billingCycle: z.enum(['monthly', 'quarterly', 'yearly']).optional(),
+    billingCycle: z.enum(billingCycles).optional(),
     categoryId: entityId.optional(),
-    currencyCode: z
-      .string()
-      .trim()
-      .regex(/^[A-Z]{3}$/, 'Currency code must be a 3-letter ISO code.')
-      .optional(),
-    customServiceName: z.string().trim().min(1).max(120).nullable().optional(),
-    nextRenewalDate: validDateString.nullable().optional(),
+    cost: cost.optional(),
+    currencyCode: currencyCode.optional(),
+    lastUsedDate: validDateString.nullable().optional(),
     notes: z.string().max(2000).nullable().optional(),
     planName: z.string().trim().min(1).max(120).nullable().optional(),
-    price: z
-      .union([z.number(), z.string()])
-      .pipe(z.coerce.number().min(0, 'Price must be 0 or greater.'))
-      .optional(),
-    serviceId: entityId.nullable().optional(),
+    renewalDate: validDateString.optional(),
+    serviceName: serviceName.optional(),
     startDate: validDateString.optional(),
-    status: z.enum(['trial', 'active', 'paused', 'cancelled']).optional(),
-    trialEndDate: validDateString.nullable().optional(),
+    status: z.enum(subscriptionStatuses).optional(),
   })
   .strict()
   .refine((values) => Object.keys(values).length > 0, {
     message: 'At least one field is required to update subscription.',
   })
-  .refine(
-    (data) => {
-      if (data.serviceId !== undefined && data.customServiceName !== undefined) {
-        const hasService = Boolean(data.serviceId);
-        const hasCustom = Boolean(
-          data.customServiceName && data.customServiceName.trim().length > 0,
-        );
-        return (hasService && !hasCustom) || (!hasService && hasCustom);
-      }
-      return true;
-    },
-    {
-      message: 'Provide either a catalog service or a custom service name, not both.',
-      path: ['serviceId'],
-    },
-  )
-  .refine(
-    (data) => {
-      if (data.startDate && data.nextRenewalDate) {
-        return data.nextRenewalDate >= data.startDate;
-      }
-      return true;
-    },
-    {
-      message: 'Next renewal date must be on or after start date.',
-      path: ['nextRenewalDate'],
-    },
-  )
-  .refine(
-    (data) => {
-      if (data.startDate && data.trialEndDate) {
-        return data.trialEndDate >= data.startDate;
-      }
-      return true;
-    },
-    {
-      message: 'Trial end date must be on or after start date.',
-      path: ['trialEndDate'],
-    },
-  );
+  .refine((data) => !(data.startDate && data.renewalDate) || data.renewalDate >= data.startDate, {
+    message: 'Renewal date must be on or after start date.',
+    path: ['renewalDate'],
+  });
 
 export const subscriptionQuerySchema = z
   .object({
     archived: z.enum(['true', 'false', 'all']).default('false'),
-    billingCycle: z.enum(['monthly', 'quarterly', 'yearly']).optional(),
+    billingCycle: z.enum(billingCycles).optional(),
     categoryId: entityId.optional(),
     limit: z.coerce.number().int().min(1).max(100).default(10),
     page: z.coerce.number().int().min(1).default(1),
     search: z.string().trim().max(120).optional(),
     sortBy: z
-      .enum(['serviceName', 'price', 'nextRenewalDate', 'startDate', 'createdAt'])
+      .enum(['serviceName', 'cost', 'renewalDate', 'startDate', 'createdAt', 'lastUsedDate'])
       .default('createdAt'),
     sortOrder: z
       .enum(['asc', 'desc', 'ASC', 'DESC'])
       .default('desc')
       .transform((val) => val.toLowerCase()),
-    status: z.enum(['trial', 'active', 'paused', 'cancelled']).optional(),
+    status: z.enum(subscriptionStatuses).optional(),
+    // FR8: only subscriptions not used for more than this many days.
+    unusedDays: z.coerce.number().int().min(1).max(3650).optional(),
   })
+  .strict();
+
+export const markUsedSchema = z.object({ lastUsedDate: validDateString.optional() }).strict();
+
+export const subscriptionHistoryQuerySchema = z
+  .object({ limit: z.coerce.number().int().min(1).max(100).default(50) })
   .strict();
 
 export const monetaryAmount = z
@@ -270,20 +207,36 @@ export const monetaryAmount = z
         const str = String(val);
         const parts = str.split('.');
         return parts.length < 2 || parts[1].length <= 2;
-      }, 'Amount cannot have more than 2 decimal places.'),
+      }, 'Amount cannot have more than 2 decimal places.')
+      .refine((val) => val < 1000000, 'Amount must be below 1,000,000.'),
   )
   .transform((val) => val.toFixed(2));
+
+export const cancelSubscriptionSchema = z
+  .object({
+    finalPayment: z
+      .object({
+        amount: monetaryAmount,
+        notes: z.string().max(2000).nullable().optional(),
+        paymentDate: validDateString,
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
 
 export const createPaymentSchema = z
   .object({
     amount: monetaryAmount,
     billingPeriodEnd: validDateString.nullable().optional(),
     billingPeriodStart: validDateString.nullable().optional(),
+    // Optional: defaults to the subscription's currency; a different currency is rejected.
     currencyCode: z
       .string()
       .trim()
       .regex(/^[A-Z]{3}$/, 'Currency code must be a 3-letter ISO code.')
-      .transform((c) => c.toUpperCase()),
+      .transform((c) => c.toUpperCase())
+      .optional(),
     notes: z.string().max(2000).nullable().optional(),
     paymentDate: validDateString,
     paymentStatus: z.enum(['pending', 'completed', 'failed', 'cancelled']).default('completed'),
@@ -386,7 +339,7 @@ export const notificationQuerySchema = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).default(20),
     page: z.coerce.number().int().min(1).default(1),
-    type: z.enum(['renewal', 'trial_expiration', 'system']).optional(),
+    type: z.enum(['renewal', 'system']).optional(),
     unreadOnly: z
       .enum(['true', 'false'])
       .default('false')
@@ -404,28 +357,20 @@ export const recommendationQuerySchema = z
     limit: z.coerce.number().int().min(1).max(100).default(20),
     page: z.coerce.number().int().min(1).default(1),
     priority: z.enum(['high', 'medium', 'low']).optional(),
-    sortBy: z.enum(['createdAt', 'evaluatedAt', 'priority']).default('priority'),
+    rule: z.enum(recommendationRules).optional(),
+    sortBy: z
+      .enum(['generatedDate', 'evaluatedAt', 'priority', 'potentialSavings'])
+      .default('priority'),
     sortOrder: z
       .enum(['asc', 'desc', 'ASC', 'DESC'])
       .default('asc')
       .transform((value) => value.toLowerCase()),
-    status: z.enum(['active', 'dismissed', 'resolved', 'inactive']).default('active'),
-    type: z
-      .enum([
-        'exact_duplicate',
-        'potential_overlap',
-        'high_recurring_cost',
-        'spending_concentration',
-        'renewal_review',
-        'trial_review',
-        'billing_plan_review',
-      ])
-      .optional(),
+    status: z.enum([...recommendationStatuses, 'all']).default('Pending'),
   })
   .strict();
 
 export const recommendationStatusSchema = z
-  .object({ status: z.enum(['active', 'dismissed', 'resolved']) })
+  .object({ status: z.enum(recommendationStatuses) })
   .strict();
 
 export const analyticsDateRangeSchema = z
@@ -456,6 +401,8 @@ export const analyticsDateRangeSchema = z
 export const analyticsCategoryQuerySchema = z
   .object({
     categoryId: entityId.optional(),
+    // Only categories whose total spend in the range reaches this amount (SQL HAVING).
+    minAmount: z.coerce.number().min(0).max(99999999).optional(),
     currencyCode: z
       .string()
       .trim()
@@ -522,7 +469,7 @@ export const analyticsSubscriptionsQuerySchema = z
         'netCashFlow',
         'completedPaymentCount',
         'serviceName',
-        'currentPrice',
+        'currentCost',
       ])
       .default('grossPayments'),
     sortOrder: z

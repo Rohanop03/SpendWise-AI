@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-import { getPreferences } from '../api/account.js';
-import { getRecommendationSummary, getRecommendations } from '../api/recommendations.js';
 import {
   BillingCycles,
   FinancialSummary,
@@ -39,41 +37,8 @@ const quickLinks = [
   ['/recommendations', 'Review cost recommendations', 'spark'],
 ];
 
-// `getPreferences()` resolves to the preferences object; older callers wrapped it in
-// `{ preferences }`. Accept both so the preferred currency is honoured.
-function readPreferences(result) {
-  return result?.preferences ?? result ?? {};
-}
-
-function useRecommendationPreview() {
-  const [state, setState] = useState({ error: '', loading: true, previews: [], summary: null });
-  const load = useCallback(async () => {
-    setState((current) => ({ ...current, error: '', loading: true }));
-    try {
-      const [summary, list] = await Promise.all([
-        getRecommendationSummary(),
-        getRecommendations({ limit: 3, status: 'active' }),
-      ]);
-      setState({ error: '', loading: false, previews: list.recommendations || [], summary });
-    } catch {
-      setState({
-        error: 'Optimization insights could not be loaded.',
-        loading: false,
-        previews: [],
-        summary: null,
-      });
-    }
-  }, []);
-  useEffect(() => {
-    Promise.resolve().then(load);
-  }, [load]);
-  return { ...state, reload: load };
-}
-
 export default function DashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [filtersReady, setFiltersReady] = useState(searchParams.has('currency'));
-  const [reminderDays, setReminderDays] = useState(7);
   const preset = normalizePreset(searchParams.get('period'));
   const currencyParameter = searchParams.get('currency');
   const currencyCode = currencyParameter === 'ALL' ? '' : currencyParameter || '';
@@ -94,44 +59,26 @@ export default function DashboardPage() {
     [searchParams, setSearchParams],
   );
 
-  // One preferences read per visit: the reminder window drives the dial's "due" groove,
-  // and the preferred currency becomes the default filter when the URL has none.
+  // First load is one request; preferences arrive with it. When the URL names no currency the
+  // preferred one becomes the filter, which is at most one more request.
+  const { currencyOptions, failedCount, isLoading, preferences, recommendations, retry, widgets } =
+    useDashboardData({ currencyCode, endDate, startDate });
   const needsCurrency = useRef(!searchParams.has('currency'));
-  const updateSearchRef = useRef(updateSearch);
   useEffect(() => {
-    updateSearchRef.current = updateSearch;
-  }, [updateSearch]);
-  useEffect(() => {
-    let active = true;
-    getPreferences()
-      .then((result) => {
-        const preferences = readPreferences(result);
-        if (!active) return;
-        if (Number.isInteger(preferences.renewalReminderDays)) {
-          setReminderDays(preferences.renewalReminderDays);
-        }
-        if (needsCurrency.current) {
-          updateSearchRef.current({ currency: preferences.preferredCurrency || 'ALL' });
-        }
-      })
-      .catch(() => {
-        if (active && needsCurrency.current) updateSearchRef.current({ currency: 'ALL' });
-      })
-      .finally(() => {
-        if (active) setFiltersReady(true);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const { currencyOptions, failedCount, isLoading, retry, widgets } = useDashboardData({
-    currencyCode,
-    enabled: filtersReady,
-    endDate,
-    startDate,
-  });
-  const recs = useRecommendationPreview();
+    if (!preferences || !needsCurrency.current) return;
+    needsCurrency.current = false;
+    if (preferences.preferredCurrency) updateSearch({ currency: preferences.preferredCurrency });
+  }, [preferences, updateSearch]);
+  const reminderDays = Number.isInteger(preferences?.renewalReminderDays)
+    ? preferences.renewalReminderDays
+    : 7;
+  const recs = {
+    error: widgets.overview.error ? 'Optimization insights could not be loaded.' : '',
+    loading: !recommendations && !widgets.overview.error,
+    previews: recommendations?.previews || [],
+    reload: retry,
+    summary: recommendations?.summary || null,
+  };
 
   const summaries = widgets.overview.data?.currencySummaries || [];
   const hasSubscriptions = summaries.some((summary) => summary.activeSubscriptionCount > 0);
@@ -142,7 +89,6 @@ export default function DashboardPage() {
       summary.completedPaymentCount > 0,
   );
   const showNewUserState =
-    filtersReady &&
     !isLoading &&
     !widgets.overview.error &&
     !hasSubscriptions &&
@@ -277,7 +223,7 @@ export default function DashboardPage() {
             <FinancialSummary
               currencyCode={currencyCode}
               onRetry={retry}
-              savings={recs.summary?.hypotheticalMonthlySavings || []}
+              savings={recs.summary?.potentialMonthlySavings || []}
               widget={widgets.overview}
             />
           </Card>
@@ -289,7 +235,7 @@ export default function DashboardPage() {
             />
             <WidgetBody
               empty={!renewals.length}
-              emptyText="No active or trial subscriptions renew within the next 30 days."
+              emptyText="No Active subscriptions renew within the next 30 days."
               label="renewal dial"
               onRetry={retry}
               widget={widgets.renewals}
@@ -377,13 +323,13 @@ export default function DashboardPage() {
                 <dl className="flex flex-wrap gap-x-10 gap-y-3">
                   <div>
                     <dt className="text-xs font-bold text-(--graphite)">Active</dt>
-                    <dd className="display-num text-4xl">{recs.summary.activeCount}</dd>
+                    <dd className="display-num text-4xl">{recs.summary.pendingCount}</dd>
                   </div>
                   <div>
                     <dt className="text-xs font-bold text-(--graphite)">High priority</dt>
                     <dd className="display-num text-4xl">{recs.summary.highPriorityCount}</dd>
                   </div>
-                  {recs.summary.hypotheticalMonthlySavings.map((item) => (
+                  {recs.summary.potentialMonthlySavings.map((item) => (
                     <div key={item.currencyCode}>
                       <dt className="text-xs font-bold text-(--graphite)">Up to, per month</dt>
                       <dd className="display-num text-4xl">
@@ -411,10 +357,10 @@ export default function DashboardPage() {
                             </span>
                           </div>
                           <h3 className="mt-4 text-lg">{item.title}</h3>
-                          {item.estimatedSavings && (
+                          {Number(item.potentialSavings) > 0 && (
                             <p className="num mt-2 text-sm text-soft">
-                              Up to {formatCurrency(item.estimatedSavings, item.currencyCode)} /{' '}
-                              {item.savingsPeriod}
+                              Up to {formatCurrency(item.potentialSavings, item.currencyCode)} /
+                              month
                             </p>
                           )}
                         </Card>
@@ -445,7 +391,7 @@ export default function DashboardPage() {
 
           <Card className="lg:col-span-6" delay={0.1}>
             <CardHeader
-              description="Current active and trial commitments, normalized by the backend to monthly equivalents."
+              description="Current Active commitments, normalized by the backend to monthly equivalents."
               title="Billing cycle commitments"
             />
             <BillingCycles onRetry={retry} widget={widgets.billingCycles} />

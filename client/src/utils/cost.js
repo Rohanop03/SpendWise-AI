@@ -1,22 +1,16 @@
-export function calculateMonthlyEquivalent(price, billingCycle) {
-  const numericPrice = Number(price);
-  if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+import { addBillingCycle } from '../forms/renewal.js';
+
+export const BILLING_CYCLES = ['Monthly', 'Yearly'];
+
+export function calculateMonthlyEquivalent(cost, billingCycle) {
+  const numericCost = Number(cost);
+  if (!Number.isFinite(numericCost) || numericCost <= 0) {
     return 0;
   }
 
-  switch (billingCycle) {
-    case 'yearly':
-      return numericPrice / 12;
-    case 'quarterly':
-      return numericPrice / 3;
-    case 'monthly':
-    default:
-      return numericPrice;
-  }
+  return billingCycle === 'Yearly' ? numericCost / 12 : numericCost;
 }
 
-// One shared money formatter for the whole UI. `en-IN` grouping (₹1,25,000.00) suits the
-// primary INR audience; every other ISO currency keeps its own symbol and is never converted.
 export function formatCurrency(amount, currencyCode = 'USD') {
   const numericAmount = Number(amount);
   const safeAmount = Number.isFinite(numericAmount) ? numericAmount : 0;
@@ -35,47 +29,14 @@ export function formatCurrency(amount, currencyCode = 'USD') {
 }
 
 export function getBillingCycleLabel(billingCycle) {
-  switch (billingCycle) {
-    case 'yearly':
-      return 'Yearly';
-    case 'quarterly':
-      return 'Quarterly';
-    case 'monthly':
-    default:
-      return 'Monthly';
-  }
+  return billingCycle === 'Yearly' ? 'Yearly' : 'Monthly';
 }
 
+/** Last day covered by a payment made on `startDateStr` (one cycle later, minus a day). */
 export function calculateEstimatedPeriodEnd(startDateStr, billingCycle) {
-  if (!startDateStr || !/^\d{4}-\d{2}-\d{2}$/.test(startDateStr)) {
-    return '';
-  }
-
-  const [year, month, day] = startDateStr.split('-').map(Number);
-  let targetYear = year;
-  let targetMonth = month;
-
-  if (billingCycle === 'yearly') {
-    targetYear += 1;
-  } else if (billingCycle === 'quarterly') {
-    targetMonth += 3;
-    while (targetMonth > 12) {
-      targetMonth -= 12;
-      targetYear += 1;
-    }
-  } else {
-    targetMonth += 1;
-    if (targetMonth > 12) {
-      targetMonth = 1;
-      targetYear += 1;
-    }
-  }
-
-  const nextCycle = new Date(Date.UTC(targetYear, targetMonth - 1, day));
-  nextCycle.setUTCDate(nextCycle.getUTCDate() - 1);
-
-  const y = nextCycle.getUTCFullYear();
-  const m = String(nextCycle.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(nextCycle.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  const nextCycle = addBillingCycle(startDateStr, billingCycle);
+  if (!nextCycle) return '';
+  const date = new Date(`${nextCycle}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
 }

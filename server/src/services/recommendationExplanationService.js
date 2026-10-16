@@ -1,8 +1,8 @@
 function deterministicExplanation(recommendation) {
-  const savings = recommendation.estimatedSavings
-    ? ` The stored hypothetical opportunity is ${recommendation.currencyCode} ${recommendation.estimatedSavings} per ${recommendation.savingsPeriod}; it is not guaranteed.`
+  const savings = Number(recommendation.potentialSavings) > 0
+    ? ` The estimated saving is ${recommendation.currencyCode} ${recommendation.potentialSavings} per month; it is not guaranteed.`
     : ' No numeric saving is claimed because the available records do not support one.';
-  return `${recommendation.explanation}${savings} ${recommendation.suggestedAction}`;
+  return `${recommendation.recommendationText}.${savings} ${recommendation.suggestedAction}`;
 }
 
 function isSafeText(value) {
@@ -21,17 +21,15 @@ export function createRecommendationExplanationService({ enabled = false, provid
       if (!enabled || !provider) return { explanation: fallback, source: 'deterministic' };
       try {
         const facts = {
-          confidence: recommendation.confidence,
           currencyCode: recommendation.currencyCode,
-          estimatedSavings: recommendation.estimatedSavings,
-          explanation: recommendation.explanation,
-          savingsPeriod: recommendation.savingsPeriod,
-          serviceNames: recommendation.subscriptions.map((item) => item.serviceName),
+          potentialSavings: recommendation.potentialSavings,
+          recommendationText: recommendation.recommendationText,
+          rule: recommendation.rule,
+          serviceName: recommendation.subscription?.serviceName ?? null,
           suggestedAction: recommendation.suggestedAction,
           title: recommendation.title,
-          type: recommendation.type,
         };
-        const response = await provider.explain(facts, { timeoutMs: 4000, maxCharacters: 1200 });
+        const response = await provider.explain(facts, { maxCharacters: 1200, timeoutMs: 4000 });
         if (!isSafeText(response)) return { explanation: fallback, source: 'deterministic' };
         return { explanation: response.trim(), source: 'provider' };
       } catch {

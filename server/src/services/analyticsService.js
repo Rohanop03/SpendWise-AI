@@ -12,13 +12,31 @@ function escapeCsvCell(value) {
   return `"${str.replace(/"/g, '""')}"`;
 }
 
+/**
+ * Analytics are month-granular because they read the monthly_spend_by_category view.
+ * Any startDate/endDate is widened to whole calendar months: the repository receives the
+ * first day of the first and last month, and responses report the effective range.
+ */
+export function toMonthRange({ endDate, startDate } = {}) {
+  const monthStart = (date) => (date ? `${date.slice(0, 7)}-01` : null);
+  const monthEnd = (date) => {
+    if (!date) return null;
+    const [year, month] = date.split('-').map(Number);
+    return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+  };
+  return {
+    period: { endDate: monthEnd(endDate), granularity: 'month', startDate: monthStart(startDate) },
+    query: { endDate: monthStart(endDate), startDate: monthStart(startDate) },
+  };
+}
+
 export function createAnalyticsService(analyticsRepository) {
   return {
     async getFinancialOverview({ currencyCode, endDate, startDate, userId }) {
+      const range = toMonthRange({ endDate, startDate });
       const raw = await analyticsRepository.getFinancialOverview({
         currencyCode,
-        endDate,
-        startDate,
+        ...range.query,
         userId,
       });
 
@@ -78,19 +96,16 @@ export function createAnalyticsService(analyticsRepository) {
 
       return {
         currencySummaries,
-        period: {
-          endDate: endDate || null,
-          startDate: startDate || null,
-        },
+        period: range.period,
       };
     },
 
     async getSpendingTrends({ currencyCode, endDate, interval = 'monthly', startDate, userId }) {
+      const range = toMonthRange({ endDate, startDate });
       const rows = await analyticsRepository.getSpendingTrends({
         currencyCode,
-        endDate,
+        ...range.query,
         interval,
-        startDate,
         userId,
       });
 
@@ -111,21 +126,18 @@ export function createAnalyticsService(analyticsRepository) {
       });
 
       return {
-        period: {
-          endDate: endDate || null,
-          interval,
-          startDate: startDate || null,
-        },
+        period: { ...range.period, interval },
         trends,
       };
     },
 
-    async getCategoryAnalytics({ categoryId, currencyCode, endDate, startDate, userId }) {
+    async getCategoryAnalytics({ categoryId, currencyCode, endDate, minAmount, startDate, userId }) {
+      const range = toMonthRange({ endDate, startDate });
       const rows = await analyticsRepository.getCategoryAnalytics({
         categoryId,
         currencyCode,
-        endDate,
-        startDate,
+        ...range.query,
+        minAmount,
         userId,
       });
 
@@ -163,10 +175,7 @@ export function createAnalyticsService(analyticsRepository) {
 
       return {
         categories,
-        period: {
-          endDate: endDate || null,
-          startDate: startDate || null,
-        },
+        period: range.period,
       };
     },
 
@@ -181,14 +190,14 @@ export function createAnalyticsService(analyticsRepository) {
       subscriptionId,
       userId,
     }) {
+      const range = toMonthRange({ endDate, startDate });
       const { rows, totalCount } = await analyticsRepository.getSubscriptionAnalytics({
         currencyCode,
-        endDate,
+        ...range.query,
         limit,
         offset,
         sortBy,
         sortOrder,
-        startDate,
         subscriptionId,
         userId,
       });
@@ -206,7 +215,7 @@ export function createAnalyticsService(analyticsRepository) {
           completedPaymentCount: Number(row.completed_payment_count || 0),
           completedRefunds: refundsStr,
           currencyCode: row.currency_code,
-          currentPrice: fromCents(toCents(row.current_price)),
+          currentCost: fromCents(toCents(row.current_cost)),
           estimatedMonthlyCost: fromCents(toCents(row.estimated_monthly_cost || 0)),
           grossPayments: grossStr,
           netCashFlow: netCashFlowStr,
@@ -235,11 +244,11 @@ export function createAnalyticsService(analyticsRepository) {
       type = 'recurring',
       userId,
     }) {
+      const range = toMonthRange({ endDate, startDate });
       const rows = await analyticsRepository.getTopSubscriptions({
         currencyCode,
-        endDate,
+        ...range.query,
         limit,
-        startDate,
         type,
         userId,
       });
@@ -250,7 +259,7 @@ export function createAnalyticsService(analyticsRepository) {
             billingCycle: row.billing_cycle,
             categoryName: row.category_name,
             currencyCode: row.currency_code,
-            currentPrice: fromCents(toCents(row.current_price)),
+            currentCost: fromCents(toCents(row.current_cost)),
             normalizedMonthlyCost: fromCents(toCents(row.normalized_monthly_cost)),
             serviceName: row.service_name,
             status: row.status,
@@ -263,7 +272,7 @@ export function createAnalyticsService(analyticsRepository) {
           categoryName: row.category_name,
           completedPaymentCount: Number(row.completed_payment_count || 0),
           currencyCode: row.currency_code,
-          currentPrice: fromCents(toCents(row.current_price)),
+          currentCost: fromCents(toCents(row.current_cost)),
           grossPayments: fromCents(toCents(row.gross_payments)),
           serviceName: row.service_name,
           status: row.status,
@@ -285,23 +294,21 @@ export function createAnalyticsService(analyticsRepository) {
       });
 
       const billingCycles = rows.map((row) => ({
-        activeCount: Number(row.active_count || 0),
         billingCycle: row.billing_cycle,
         currencyCode: row.currency_code,
         estimatedMonthlyTotal: fromCents(toCents(row.estimated_monthly_total)),
         estimatedYearlyTotal: fromCents(toCents(row.estimated_yearly_total)),
         subscriptionCount: Number(row.subscription_count || 0),
-        trialCount: Number(row.trial_count || 0),
       }));
 
       return { billingCycles };
     },
 
     async getPaymentStatusAnalytics({ currencyCode, endDate, startDate, userId }) {
+      const range = toMonthRange({ endDate, startDate });
       const rows = await analyticsRepository.getPaymentStatusAnalytics({
         currencyCode,
-        endDate,
-        startDate,
+        ...range.query,
         userId,
       });
 
@@ -326,20 +333,17 @@ export function createAnalyticsService(analyticsRepository) {
       }
 
       return {
-        period: {
-          endDate: endDate || null,
-          startDate: startDate || null,
-        },
+        period: range.period,
         statuses: Array.from(byCurrency.values()),
       };
     },
 
     async getRefundAnalytics({ currencyCode, endDate, limit = 20, startDate, userId }) {
+      const range = toMonthRange({ endDate, startDate });
       const { recentRefunds, summaries } = await analyticsRepository.getRefundAnalytics({
         currencyCode,
-        endDate,
+        ...range.query,
         limit,
-        startDate,
         userId,
       });
 
@@ -366,10 +370,7 @@ export function createAnalyticsService(analyticsRepository) {
       }));
 
       return {
-        period: {
-          endDate: endDate || null,
-          startDate: startDate || null,
-        },
+        period: range.period,
         recentRefunds: formattedRecent,
         summaries: formattedSummaries,
       };
@@ -383,6 +384,7 @@ export function createAnalyticsService(analyticsRepository) {
       subscriptionId,
       userId,
     }) {
+      const range = toMonthRange({ endDate, startDate });
       const [overview, categories, subscriptions, trends, paymentStatuses, refunds] =
         await Promise.all([
           this.getFinancialOverview({ currencyCode, endDate, startDate, userId }),
@@ -414,10 +416,7 @@ export function createAnalyticsService(analyticsRepository) {
         monthlyTrends: trends.trends,
         overview: overview.currencySummaries,
         paymentStatuses: paymentStatuses.statuses,
-        period: {
-          endDate: endDate || null,
-          startDate: startDate || null,
-        },
+        period: range.period,
         refunds: refunds.summaries,
         subscriptionBreakdown: subscriptions.subscriptions,
       };
@@ -516,7 +515,7 @@ export function createAnalyticsService(analyticsRepository) {
       // Section 4: Subscription Breakdown
       lines.push('--- SUBSCRIPTION BREAKDOWN ---');
       lines.push(
-        'Service,Category,Status,Cycle,Currency,Current Price,Gross Payments,Completed Refunds,Net Cash Flow,Payment Count,Est Monthly Cost',
+        'Service,Category,Status,Cycle,Currency,Current Cost,Gross Payments,Completed Refunds,Net Cash Flow,Payment Count,Est Monthly Cost',
       );
       for (const sub of report.subscriptionBreakdown) {
         lines.push(
@@ -526,7 +525,7 @@ export function createAnalyticsService(analyticsRepository) {
             escapeCsvCell(sub.status),
             escapeCsvCell(sub.billingCycle),
             escapeCsvCell(sub.currencyCode),
-            escapeCsvCell(sub.currentPrice),
+            escapeCsvCell(sub.currentCost),
             escapeCsvCell(sub.grossPayments),
             escapeCsvCell(sub.completedRefunds),
             escapeCsvCell(sub.netCashFlow),

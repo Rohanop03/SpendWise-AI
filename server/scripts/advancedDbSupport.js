@@ -1,7 +1,7 @@
 import { createDatabase } from '../src/config/db.js';
 import config from '../src/config/env.js';
 
-export const expectedTestDatabaseName = 'spendwise_test';
+export const expectedTestDatabaseName = 'smart_subscription_test';
 
 export function createTestDatabase() {
   if (!config.testDatabaseUrl) {

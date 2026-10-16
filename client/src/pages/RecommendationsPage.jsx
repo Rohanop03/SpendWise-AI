@@ -22,12 +22,7 @@ import { useToast } from '../ui/toastContext.js';
 import { formatCurrency } from '../utils/cost.js';
 import { formatDate } from '../utils/dates.js';
 
-const statusNames = {
-  active: 'active',
-  dismissed: 'dismissed',
-  inactive: 'no longer applicable',
-  resolved: 'addressed',
-};
+const statusNames = { Dismissed: 'dismissed', Pending: 'pending', Reviewed: 'reviewed' };
 
 function RecommendationCard({ explanation, item, onExplain, onStatus }) {
   return (
@@ -42,16 +37,13 @@ function RecommendationCard({ explanation, item, onExplain, onStatus }) {
       <article>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="eyebrow !text-(--on-ink-soft)">{item.type.replaceAll('_', ' ')}</p>
+            <p className="eyebrow !text-(--on-ink-soft)">{item.rule.replaceAll('_', ' ')}</p>
             <h2 className="mt-2 text-xl sm:text-2xl">{item.title}</h2>
           </div>
           <div className="flex flex-wrap gap-2">
             <RecommendationStatusChip onInk status={item.status} />
             <span className="rounded-full border border-white/25 px-2.5 py-1 text-xs font-bold leading-none">
               {item.priority} priority
-            </span>
-            <span className="rounded-full border border-white/25 px-2.5 py-1 text-xs font-bold leading-none">
-              {item.confidence} confidence
             </span>
           </div>
         </div>
@@ -60,27 +52,24 @@ function RecommendationCard({ explanation, item, onExplain, onStatus }) {
           <div className="space-y-3 text-sm leading-6">
             <p>
               <strong>Why this was suggested:</strong>{' '}
-              <span className="text-soft">{item.explanation}</span>
+              <span className="text-soft">{item.recommendationText}</span>
             </p>
             <p>
               <strong>Suggested action:</strong>{' '}
               <span className="text-soft">{item.suggestedAction}</span>
             </p>
-            {item.evidence?.limitation && (
-              <p className="text-xs text-soft">Limitation: {item.evidence.limitation}</p>
-            )}
             <p className="num text-xs text-soft">
-              Evaluated {formatDate(item.evaluatedAt || item.createdAt, 'D MMM YYYY')}
+              Evaluated {formatDate(item.evaluatedAt || item.generatedDate, 'D MMM YYYY')}
             </p>
           </div>
-          {item.estimatedSavings ? (
+          {Number(item.potentialSavings) > 0 ? (
             <div className="lg:text-right">
               <p aria-hidden="true" className="display-num text-[clamp(2.4rem,2rem+1.5vw,3.4rem)]">
-                {formatCurrency(item.estimatedSavings, item.currencyCode)}
+                {formatCurrency(item.potentialSavings, item.currencyCode)}
               </p>
               <p className="mt-1 text-sm font-bold">
-                Up to {formatCurrency(item.estimatedSavings, item.currencyCode)} per{' '}
-                {item.savingsPeriod} (hypothetical)
+                Up to {formatCurrency(item.potentialSavings, item.currencyCode)} per month
+                (estimate)
               </p>
             </div>
           ) : (
@@ -91,17 +80,16 @@ function RecommendationCard({ explanation, item, onExplain, onStatus }) {
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
-          {item.subscriptions.map((subscription) => (
+          {item.subscription && (
             <Link
               className="pill pill-on-ink pill-sm"
-              key={subscription.id}
-              to={`/subscriptions/${subscription.id}`}
+              to={`/subscriptions/${item.subscription.id}`}
             >
-              {subscription.serviceName} ·{' '}
-              {formatCurrency(subscription.price, subscription.currencyCode)}/
-              {subscription.billingCycle}
+              {item.subscription.serviceName} ·{' '}
+              {formatCurrency(item.subscription.cost, item.subscription.currencyCode)}/
+              {item.subscription.billingCycle}
             </Link>
-          ))}
+          )}
         </div>
 
         {explanation && (
@@ -112,19 +100,19 @@ function RecommendationCard({ explanation, item, onExplain, onStatus }) {
         )}
 
         <div className="mt-6 flex flex-wrap gap-2 border-t border-white/10 pt-5">
-          {item.status === 'active' && (
+          {item.status === 'Pending' && (
             <>
               <Pill
                 icon="check"
-                onClick={() => onStatus(item, 'resolved')}
+                onClick={() => onStatus(item, 'Reviewed')}
                 size="sm"
                 variant="paper"
               >
-                Mark addressed
+                Mark reviewed
               </Pill>
               <Pill
                 icon="close"
-                onClick={() => onStatus(item, 'dismissed')}
+                onClick={() => onStatus(item, 'Dismissed')}
                 size="sm"
                 variant="onInk"
               >
@@ -143,7 +131,7 @@ function RecommendationCard({ explanation, item, onExplain, onStatus }) {
 
 export default function RecommendationsPage() {
   const { notify } = useToast();
-  const [filters, setFilters] = useState({ currencyCode: '', status: 'active' });
+  const [filters, setFilters] = useState({ currencyCode: '', status: 'Pending' });
   const [result, setResult] = useState({ pagination: null, recommendations: [] });
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState('');
@@ -202,12 +190,19 @@ export default function RecommendationsPage() {
     }
   }
 
+  // Optimistic: the card leaves the filtered list at once; it returns if the server refuses.
   async function changeStatus(item, status) {
+    const previous = result;
+    setResult((current) => ({
+      ...current,
+      recommendations: current.recommendations.filter((rec) => rec.id !== item.id),
+    }));
     try {
       await updateRecommendation(item.id, status);
       notify(`Recommendation marked ${statusNames[status]}.`, { description: item.title });
-      await Promise.all([load(), loadSummary()]);
+      loadSummary();
     } catch (requestError) {
+      setResult(previous);
       setError(getApiErrorMessage(requestError));
     }
   }
@@ -239,9 +234,9 @@ export default function RecommendationsPage() {
           <p className="eyebrow !text-(--on-ink-soft)">
             Total potential savings · active recommendations
           </p>
-          {summary?.hypotheticalMonthlySavings?.length ? (
+          {summary?.potentialMonthlySavings?.length ? (
             <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2">
-              {summary.hypotheticalMonthlySavings.map((item) => (
+              {summary.potentialMonthlySavings.map((item) => (
                 <p
                   className="display-num text-[clamp(2.6rem,2rem+2vw,3.8rem)]"
                   key={item.currencyCode}
@@ -269,10 +264,10 @@ export default function RecommendationsPage() {
                   }
                   value={filters.status}
                 >
-                  <option value="active">Active</option>
-                  <option value="dismissed">Dismissed</option>
-                  <option value="resolved">Addressed</option>
-                  <option value="inactive">No longer applicable</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Reviewed">Reviewed</option>
+                  <option value="Dismissed">Dismissed</option>
+                  <option value="all">All</option>
                 </Select>
               )}
             </Field>
@@ -297,7 +292,7 @@ export default function RecommendationsPage() {
           </div>
           {summary && (
             <p className="mt-4 text-xs text-(--graphite)">
-              {summary.activeCount} active · {summary.highPriorityCount} high priority
+              {summary.pendingCount} pending · {summary.highPriorityCount} high priority
             </p>
           )}
         </Card>
@@ -330,7 +325,7 @@ export default function RecommendationsPage() {
           <Card>
             <EmptyState
               action={
-                filters.status === 'active' && (
+                filters.status === 'Pending' && (
                   <Pill disabled={generating} icon="spark" onClick={analyze} variant="ink">
                     Run an analysis
                   </Pill>

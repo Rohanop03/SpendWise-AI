@@ -1,3 +1,4 @@
+import compression from 'compression';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import express from 'express';
@@ -32,7 +33,18 @@ export function createApp({ appConfig = config, databaseClient = database } = {}
       origin: appConfig.corsOrigin,
     }),
   );
+  // gzip: JSON lists shrink 5-10x on the wire.
+  app.use(compression({ threshold: 1024 }));
   app.use(express.json({ limit: '100kb' }));
+  // Express adds a weak ETag to every JSON response; "private, no-cache" lets the browser keep
+  // a per-user copy and revalidate it, so unchanged GETs come back as an empty 304.
+  app.use('/api/v1', (request, response, next) => {
+    if (request.method === 'GET') {
+      response.set('Cache-Control', 'private, no-cache');
+      response.vary('Authorization');
+    }
+    next();
+  });
   app.use(cookieParser());
 
   app.use('/api/v1', createApiRouter(databaseClient, appConfig));

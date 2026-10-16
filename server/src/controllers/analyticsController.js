@@ -29,6 +29,7 @@ export function createAnalyticsController(analyticsService) {
         categoryId: query.categoryId,
         currencyCode: query.currencyCode,
         endDate: query.endDate,
+        minAmount: query.minAmount,
         startDate: query.startDate,
         userId: request.user.id,
       });

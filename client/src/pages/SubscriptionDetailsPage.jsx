@@ -1,18 +1,25 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { getApiErrorMessage } from '../api/http.js';
+import { getSubscriptionPayments } from '../api/payments.js';
 import {
   archiveSubscription,
+  cancelSubscription,
+  deleteSubscription,
   getSubscription,
+  getSubscriptionHistory,
+  markSubscriptionUsed,
   restoreSubscription,
   updateSubscription,
 } from '../api/subscriptions.js';
+import { localToday } from '../forms/renewal.js';
+import { cancelSchema } from '../forms/schemas.js';
 import { pageIndex } from '../layout/nav.js';
 import { ConfirmDialog } from '../ui/Dialog.jsx';
 import { CardSkeleton, EmptyState, InlineError } from '../ui/Feedback.jsx';
+import { Field, Input } from '../ui/Field.jsx';
 import FlipDate from '../ui/FlipDate.jsx';
-import Icon from '../ui/Icon.jsx';
 import { PageHeader } from '../ui/Page.jsx';
 import { BackLink, Pill, PillLink } from '../ui/Pill.jsx';
 import { SubscriptionStatusChip, Tag } from '../ui/Status.jsx';
@@ -20,6 +27,20 @@ import { Card, CardHeader } from '../ui/Surface.jsx';
 import { useToast } from '../ui/toastContext.js';
 import { calculateMonthlyEquivalent, formatCurrency, getBillingCycleLabel } from '../utils/cost.js';
 import { daysUntil, formatDate, relativeDays } from '../utils/dates.js';
+
+const UNUSED_THRESHOLD_DAYS = 60;
+const fieldLabels = {
+  billing_cycle: 'Billing cycle',
+  cost: 'Cost',
+  renewal_date: 'Renewal date',
+  status: 'Status',
+};
+const valueKeys = {
+  billing_cycle: 'billingCycle',
+  cost: 'cost',
+  renewal_date: 'renewalDate',
+  status: 'status',
+};
 
 function Row({ children, label }) {
   return (
@@ -32,36 +53,53 @@ function Row({ children, label }) {
 
 export default function SubscriptionDetailsPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { notify } = useToast();
   const [subscription, setSubscription] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
-  const [confirm, setConfirm] = useState(null); // 'archive' | 'cancel' | null
+  const [confirm, setConfirm] = useState(null); // 'archive' | 'cancel' | 'delete' | null
+  const [finalPayment, setFinalPayment] = useState({
+    amount: '',
+    includePayment: false,
+    paymentDate: localToday(),
+  });
+  const [finalPaymentErrors, setFinalPaymentErrors] = useState({});
 
+  // Record, change history and recent payments load in parallel (one round trip of latency).
   useEffect(() => {
-    getSubscription(id)
-      .then(setSubscription)
+    Promise.all([
+      getSubscription(id),
+      getSubscriptionHistory(id).catch(() => []),
+      getSubscriptionPayments(id, { limit: 5 })
+        .then((data) => data.items)
+        .catch(() => []),
+    ])
+      .then(([sub, events, recentPayments]) => {
+        setSubscription(sub);
+        setHistory(events);
+        setPayments(recentPayments);
+      })
       .catch((err) => setError(getApiErrorMessage(err)))
       .finally(() => setLoading(false));
   }, [id]);
 
-  async function handleStatusChange(newStatus) {
-    if (!subscription) return;
+  const refreshHistory = () =>
+    getSubscriptionHistory(id)
+      .then(setHistory)
+      .catch(() => {});
+
+  async function handleReactivate() {
     setActionLoading(true);
     setError('');
     try {
-      const updates = { status: newStatus };
-      if (newStatus === 'active' && !subscription.nextRenewalDate) {
-        // Same rule as before: default to one month from today when reactivating without a date.
-        const nextMonth = new Date();
-        nextMonth.setMonth(nextMonth.getMonth() + 1);
-        updates.nextRenewalDate = nextMonth.toISOString().split('T')[0];
-      }
-      const updated = await updateSubscription(subscription.id, updates);
+      const updated = await updateSubscription(subscription.id, { status: 'Active' });
       setSubscription(updated);
-      setConfirm(null);
-      notify(`Subscription status updated to ${newStatus}.`);
+      refreshHistory();
+      notify('Subscription reactivated.');
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -69,12 +107,56 @@ export default function SubscriptionDetailsPage() {
     }
   }
 
-  async function handleArchive() {
-    if (!subscription) return;
+  async function handleCancel() {
+    const parsed = cancelSchema.safeParse(finalPayment);
+    if (!parsed.success) {
+      setFinalPaymentErrors(
+        Object.fromEntries(parsed.error.issues.map((issue) => [issue.path[0], issue.message])),
+      );
+      return;
+    }
+    setFinalPaymentErrors({});
     setActionLoading(true);
     try {
-      const updated = await archiveSubscription(subscription.id);
-      setSubscription(updated);
+      const result = await cancelSubscription(
+        subscription.id,
+        finalPayment.includePayment
+          ? { amount: Number(finalPayment.amount).toFixed(2), paymentDate: finalPayment.paymentDate }
+          : undefined,
+      );
+      setSubscription(result.subscription);
+      if (result.payment) setPayments((items) => [result.payment, ...items].slice(0, 5));
+      refreshHistory();
+      setConfirm(null);
+      notify(
+        result.payment
+          ? `${result.subscription.serviceName} cancelled; final payment recorded.`
+          : `${result.subscription.serviceName} cancelled.`,
+      );
+    } catch (err) {
+      setFinalPaymentErrors({ form: getApiErrorMessage(err) });
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  // Optimistic: the date changes at once and reverts if the server refuses.
+  async function handleMarkUsed() {
+    const previous = subscription;
+    setSubscription({ ...subscription, daysSinceLastUse: 0, lastUsedDate: localToday() });
+    try {
+      setSubscription(await markSubscriptionUsed(subscription.id));
+      notify('Marked as used today.');
+    } catch (err) {
+      setSubscription(previous);
+      notify('Could not record usage.', { description: getApiErrorMessage(err), tone: 'error' });
+    }
+  }
+
+  async function handleArchive() {
+    setActionLoading(true);
+    try {
+      setSubscription(await archiveSubscription(subscription.id));
       setConfirm(null);
       notify('Subscription has been archived.');
     } catch (err) {
@@ -85,16 +167,27 @@ export default function SubscriptionDetailsPage() {
   }
 
   async function handleRestore() {
-    if (!subscription) return;
     setActionLoading(true);
     setError('');
     try {
-      const updated = await restoreSubscription(subscription.id);
-      setSubscription(updated);
+      setSubscription(await restoreSubscription(subscription.id));
       notify('Subscription has been restored to active list.');
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleDelete() {
+    setActionLoading(true);
+    try {
+      await deleteSubscription(subscription.id);
+      notify(`${subscription.serviceName} deleted.`);
+      navigate('/subscriptions', { replace: true });
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+      setConfirm(null);
       setActionLoading(false);
     }
   }
@@ -125,9 +218,11 @@ export default function SubscriptionDetailsPage() {
     );
   }
 
-  const monthlyCost = calculateMonthlyEquivalent(subscription.price, subscription.billingCycle);
+  const monthlyCost = calculateMonthlyEquivalent(subscription.cost, subscription.billingCycle);
   const archived = Boolean(subscription.archivedAt);
-  const renewalDays = daysUntil(subscription.nextRenewalDate);
+  const active = subscription.status === 'Active';
+  const renewalDays = daysUntil(subscription.renewalDate);
+  const unused = (subscription.daysSinceLastUse ?? -1) > UNUSED_THRESHOLD_DAYS;
 
   return (
     <div className="mx-auto w-full max-w-6xl">
@@ -159,19 +254,9 @@ export default function SubscriptionDetailsPage() {
             archivedAt={subscription.archivedAt}
             status={subscription.status}
           />
+          {unused && active && <Tag>Unused {subscription.daysSinceLastUse} days</Tag>}
           {subscription.planName && (
             <span className="text-(--graphite)">{subscription.planName}</span>
-          )}
-          {subscription.serviceWebsiteUrl && (
-            <a
-              aria-label={`Open ${subscription.serviceName} website`}
-              className="pill pill-ghost pill-sm"
-              href={subscription.serviceWebsiteUrl}
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              Website <Icon className="size-4" name="arrowUpRight" />
-            </a>
           )}
         </div>
       </PageHeader>
@@ -187,7 +272,7 @@ export default function SubscriptionDetailsPage() {
           <p className="eyebrow !text-(--on-ink-soft)">Cost & Billing</p>
           <p className="mt-4 flex flex-wrap items-baseline gap-2">
             <span className="display-num text-[clamp(2.6rem,2rem+2vw,3.6rem)]">
-              {formatCurrency(subscription.price, subscription.currencyCode)}
+              {formatCurrency(subscription.cost, subscription.currencyCode)}
             </span>
             <span className="text-sm font-bold text-soft">
               / {getBillingCycleLabel(subscription.billingCycle).toLowerCase()}
@@ -219,23 +304,30 @@ export default function SubscriptionDetailsPage() {
             <Row label="Start Date">
               <span className="num">{formatDate(subscription.startDate)}</span>
             </Row>
-            <Row label="Next Renewal Date">
-              <FlipDate value={subscription.nextRenewalDate} />
-              {renewalDays !== null &&
-                ['active', 'trial'].includes(subscription.status) &&
-                !archived && (
-                  <span className="block text-xs font-normal text-(--graphite)">
-                    {renewalDays < 0
-                      ? `passed ${Math.abs(renewalDays)} days ago`
-                      : relativeDays(renewalDays)}
-                  </span>
-                )}
+            <Row label="Renewal Date">
+              <FlipDate value={subscription.renewalDate} />
+              {renewalDays !== null && active && !archived && (
+                <span className="block text-xs font-normal text-(--graphite)">
+                  {renewalDays < 0
+                    ? `passed ${Math.abs(renewalDays)} days ago`
+                    : relativeDays(renewalDays)}
+                </span>
+              )}
             </Row>
-            {subscription.trialEndDate && (
-              <Row label="Trial End Date">
-                <span className="num">{formatDate(subscription.trialEndDate)}</span>
-              </Row>
-            )}
+            <Row label="Last Used">
+              {subscription.lastUsedDate ? (
+                <>
+                  <span className="num">{formatDate(subscription.lastUsedDate)}</span>
+                  <span className="block text-xs font-normal text-(--graphite)">
+                    {subscription.daysSinceLastUse === 0
+                      ? 'today'
+                      : `${subscription.daysSinceLastUse} days ago`}
+                  </span>
+                </>
+              ) : (
+                <span className="font-normal text-(--graphite)">Not recorded</span>
+              )}
+            </Row>
             {subscription.cancelledAt && (
               <Row label="Cancelled At">
                 {new Date(subscription.cancelledAt).toLocaleDateString()}
@@ -247,6 +339,13 @@ export default function SubscriptionDetailsPage() {
               </Row>
             )}
           </dl>
+          {!archived && (
+            <div className="mt-4">
+              <Pill icon="check" onClick={handleMarkUsed} size="sm">
+                Mark as used today
+              </Pill>
+            </div>
+          )}
         </Card>
 
         <Card className="lg:col-span-5" delay={0.1}>
@@ -254,9 +353,6 @@ export default function SubscriptionDetailsPage() {
           <dl>
             <Row label="Category">
               <Tag>{subscription.categoryName || 'Uncategorized'}</Tag>
-            </Row>
-            <Row label="Catalog Source">
-              {subscription.serviceId ? 'Catalog Service' : 'Custom Service'}
             </Row>
             <Row label="Created At">{new Date(subscription.createdAt).toLocaleDateString()}</Row>
           </dl>
@@ -271,37 +367,77 @@ export default function SubscriptionDetailsPage() {
           )}
         </Card>
 
+        <Card className="lg:col-span-6" delay={0.1}>
+          <CardHeader
+            action={
+              <PillLink size="sm" to={`/payments?subscriptionId=${subscription.id}`}>
+                All payments
+              </PillLink>
+            }
+            title="Recent payments"
+          />
+          {payments.length === 0 ? (
+            <p className="text-sm text-(--graphite)">No payments recorded yet.</p>
+          ) : (
+            <dl>
+              {payments.map((payment) => (
+                <Row key={payment.id} label={formatDate(payment.paymentDate)}>
+                  <span className="num">
+                    {formatCurrency(payment.amount, payment.currencyCode)}
+                  </span>
+                  <span className="block text-xs font-normal capitalize text-(--graphite)">
+                    {payment.paymentStatus}
+                  </span>
+                </Row>
+              ))}
+            </dl>
+          )}
+        </Card>
+
+        <Card className="lg:col-span-6" delay={0.15}>
+          <CardHeader
+            description="Recorded automatically by the database whenever cost, cycle, status or renewal date changes."
+            title="Change history"
+          />
+          {history.length === 0 ? (
+            <p className="text-sm text-(--graphite)">No changes recorded yet.</p>
+          ) : (
+            <ol className="space-y-3">
+              {history.map((event) => (
+                <li className="border-b border-(--hairline) pb-3 last:border-0" key={event.id}>
+                  <p className="text-xs text-(--graphite)">
+                    {new Date(event.changedAt).toLocaleString()}
+                  </p>
+                  {event.changedFields.map((field) => (
+                    <p className="text-sm" key={field}>
+                      <span className="font-bold">{fieldLabels[field] || field}:</span>{' '}
+                      <span className="num">{String(event.oldValues[valueKeys[field]] ?? '—')}</span>
+                      {' → '}
+                      <span className="num">{String(event.newValues[valueKeys[field]] ?? '—')}</span>
+                    </p>
+                  ))}
+                </li>
+              ))}
+            </ol>
+          )}
+        </Card>
+
         <Card className="lg:col-span-12" delay={0.1} look="pressed">
           <CardHeader
-            description="Status changes and archiving only change this record in SpendWise. They never cancel the service with the provider."
+            description="These actions only change this record in SpendWise. They never cancel the service with the provider."
             title="Manage this subscription"
           />
           <div className="flex flex-wrap gap-3">
-            {!archived && subscription.status === 'active' && (
-              <>
-                <Pill
-                  disabled={actionLoading}
-                  icon="pause"
-                  onClick={() => handleStatusChange('paused')}
-                >
-                  Pause
-                </Pill>
-                <Pill disabled={actionLoading} icon="close" onClick={() => setConfirm('cancel')}>
-                  Mark Cancelled
-                </Pill>
-              </>
+            {!archived && active && (
+              <Pill disabled={actionLoading} icon="close" onClick={() => setConfirm('cancel')}>
+                Cancel subscription
+              </Pill>
             )}
-            {!archived &&
-              (subscription.status === 'paused' || subscription.status === 'cancelled') && (
-                <Pill
-                  disabled={actionLoading}
-                  icon="play"
-                  onClick={() => handleStatusChange('active')}
-                  variant="ink"
-                >
-                  Reactivate
-                </Pill>
-              )}
+            {!archived && !active && (
+              <Pill disabled={actionLoading} icon="play" onClick={handleReactivate} variant="ink">
+                Reactivate
+              </Pill>
+            )}
             {!archived ? (
               <Pill icon="stack" onClick={() => setConfirm('archive')} variant="outline">
                 Archive
@@ -311,6 +447,9 @@ export default function SubscriptionDetailsPage() {
                 Restore Subscription
               </Pill>
             )}
+            <Pill icon="trash" onClick={() => setConfirm('delete')} variant="outline">
+              Delete
+            </Pill>
           </div>
         </Card>
       </div>
@@ -327,13 +466,81 @@ export default function SubscriptionDetailsPage() {
       />
       <ConfirmDialog
         busy={actionLoading}
-        busyLabel="Updating…"
-        confirmLabel="Mark as cancelled"
-        description={`${subscription.serviceName} will be marked cancelled in SpendWise and stop counting toward recurring costs and reminders. This does not cancel it with the provider — do that with them directly.`}
-        onConfirm={() => handleStatusChange('cancelled')}
-        onOpenChange={(open) => setConfirm(open ? 'cancel' : null)}
+        busyLabel="Cancelling…"
+        confirmLabel="Cancel subscription"
+        description={`${subscription.serviceName} will be marked Cancelled and stop counting toward recurring costs and reminders. Its renewal date is kept. This does not cancel it with the provider.`}
+        onConfirm={handleCancel}
+        onOpenChange={(open) => {
+          setConfirm(open ? 'cancel' : null);
+          setFinalPaymentErrors({});
+        }}
         open={confirm === 'cancel'}
-        title={`Mark ${subscription.serviceName} as cancelled?`}
+        title={`Cancel ${subscription.serviceName}?`}
+      >
+        <div className="space-y-4">
+          <label className="flex items-center gap-3 text-sm font-bold">
+            <input
+              checked={finalPayment.includePayment}
+              className="size-4"
+              onChange={(event) =>
+                setFinalPayment((value) => ({ ...value, includePayment: event.target.checked }))
+              }
+              type="checkbox"
+            />
+            Record a final payment
+          </label>
+          {finalPayment.includePayment && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field error={finalPaymentErrors.amount} id="finalAmount" label={`Amount (${subscription.currencyCode})`}>
+                {(fieldId, describedBy, invalid) => (
+                  <Input
+                    aria-describedby={describedBy}
+                    className="num"
+                    id={fieldId}
+                    inputMode="decimal"
+                    invalid={invalid}
+                    min="0.01"
+                    onChange={(event) =>
+                      setFinalPayment((value) => ({ ...value, amount: event.target.value }))
+                    }
+                    step="0.01"
+                    type="number"
+                    value={finalPayment.amount}
+                  />
+                )}
+              </Field>
+              <Field error={finalPaymentErrors.paymentDate} id="finalDate" label="Payment date">
+                {(fieldId, describedBy, invalid) => (
+                  <Input
+                    aria-describedby={describedBy}
+                    id={fieldId}
+                    invalid={invalid}
+                    onChange={(event) =>
+                      setFinalPayment((value) => ({ ...value, paymentDate: event.target.value }))
+                    }
+                    type="date"
+                    value={finalPayment.paymentDate}
+                  />
+                )}
+              </Field>
+            </div>
+          )}
+          {finalPaymentErrors.form && (
+            <p className="text-sm font-bold text-(--danger,inherit)" role="alert">
+              {finalPaymentErrors.form}
+            </p>
+          )}
+        </div>
+      </ConfirmDialog>
+      <ConfirmDialog
+        busy={actionLoading}
+        busyLabel="Deleting…"
+        confirmLabel="Delete permanently"
+        description={`${subscription.serviceName} and all of its payments, refunds and reminders are removed for good. Archive it instead if you might want it back.`}
+        onConfirm={handleDelete}
+        onOpenChange={(open) => setConfirm(open ? 'delete' : null)}
+        open={confirm === 'delete'}
+        title={`Delete ${subscription.serviceName}?`}
       />
     </div>
   );

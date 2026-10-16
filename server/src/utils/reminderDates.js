@@ -34,3 +34,12 @@ export function formatEventDate(dateString, timeZone) {
     year: 'numeric',
   }).format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
+
+/** The calendar date "today" for a user, in their IANA timezone (UTC if unset or invalid). */
+export function getUserToday(timeZone, instant = new Date()) {
+  try {
+    return getLocalDate(instant, timeZone || 'UTC');
+  } catch {
+    return getLocalDate(instant, 'UTC');
+  }
+}

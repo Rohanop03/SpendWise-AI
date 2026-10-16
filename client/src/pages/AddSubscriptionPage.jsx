@@ -6,14 +6,14 @@ import { getCategories, getServices } from '../api/catalog.js';
 import { getApiErrorMessage } from '../api/http.js';
 import { createSubscription } from '../api/subscriptions.js';
 import SubscriptionForm from '../components/subscriptions/SubscriptionForm.jsx';
+import { localToday } from '../forms/renewal.js';
+import { toSubscriptionPayload } from '../forms/schemas.js';
 import { pageIndex } from '../layout/nav.js';
 import { CardSkeleton, InlineError } from '../ui/Feedback.jsx';
 import { PageHeader } from '../ui/Page.jsx';
 import { BackLink } from '../ui/Pill.jsx';
 import { Card } from '../ui/Surface.jsx';
 import { useToast } from '../ui/toastContext.js';
-
-const today = () => new Date().toISOString().split('T')[0];
 
 export default function AddSubscriptionPage() {
   const navigate = useNavigate();
@@ -29,19 +29,19 @@ export default function AddSubscriptionPage() {
         setOptions({
           categories: cats,
           defaults: {
-            billingCycle: 'monthly',
+            billingCycle: 'Monthly',
             categoryId: firstService?.defaultCategoryId || cats[0]?.id || '',
+            cost: '',
             currencyCode: prefs?.preferredCurrency || 'USD',
             customServiceName: '',
-            nextRenewalDate: '',
+            lastUsedDate: '',
             notes: '',
             planName: '',
-            price: '',
+            renewalDate: '',
             serviceId: firstService?.id || '',
             serviceMode: 'catalog',
-            startDate: today(),
-            status: 'active',
-            trialEndDate: '',
+            startDate: localToday(),
+            status: 'Active',
           },
           services: svcs,
         });
@@ -51,22 +51,7 @@ export default function AddSubscriptionPage() {
 
   async function handleSubmit(values) {
     setError('');
-    // Same payload as before: optional fields are omitted when empty.
-    const payload = {
-      billingCycle: values.billingCycle,
-      categoryId: values.categoryId,
-      currencyCode: values.currencyCode.toUpperCase(),
-      price: Number(values.price),
-      startDate: values.startDate,
-      status: values.status,
-    };
-    if (values.serviceMode === 'catalog') payload.serviceId = values.serviceId;
-    else payload.customServiceName = values.customServiceName.trim();
-    if (values.planName.trim()) payload.planName = values.planName.trim();
-    if (values.nextRenewalDate) payload.nextRenewalDate = values.nextRenewalDate;
-    if (values.status === 'trial' && values.trialEndDate)
-      payload.trialEndDate = values.trialEndDate;
-    if (values.notes.trim()) payload.notes = values.notes.trim();
+    const payload = toSubscriptionPayload(values, options.services);
 
     try {
       const created = await createSubscription(payload);

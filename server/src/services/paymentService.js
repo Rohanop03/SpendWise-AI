@@ -8,6 +8,10 @@ export function createPaymentService({
   subscriptionRepository,
 }) {
   return {
+    /**
+     * FR5: the AFTER INSERT trigger on payment_history advances the subscription's
+     * renewal_date; the response carries the subscription as the trigger left it.
+     */
     async createPayment(userId, subscriptionId, input) {
       const subscription = await subscriptionRepository.findById({
         id: subscriptionId,
@@ -18,18 +22,30 @@ export function createPaymentService({
         throw new AppError(404, 'Subscription not found.', { code: 'NOT_FOUND' });
       }
 
+      const currencyCode = input.currencyCode ?? subscription.currencyCode;
+      if (currencyCode !== subscription.currencyCode) {
+        throw new AppError(
+          400,
+          `Payment currency must match the subscription currency (${subscription.currencyCode}).`,
+          { code: 'CURRENCY_MISMATCH' },
+        );
+      }
+
       const payment = await paymentRepository.createPayment({
         amount: input.amount,
         billingPeriodEnd: input.billingPeriodEnd,
         billingPeriodStart: input.billingPeriodStart,
-        currencyCode: input.currencyCode,
+        currencyCode,
         notes: input.notes,
         paymentDate: input.paymentDate,
         paymentStatus: input.paymentStatus || 'completed',
         subscriptionId,
       });
 
-      return payment;
+      return {
+        payment,
+        subscription: await subscriptionRepository.findById({ id: subscriptionId, userId }),
+      };
     },
 
     async getPayment(userId, id) {

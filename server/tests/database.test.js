@@ -120,15 +120,15 @@ describe('demo seed safeguards', () => {
       () =>
         assertDemoSeedAllowed({
           allowDemoSeed: true,
-          databaseName: 'spendwise_test',
+          databaseName: 'smart_subscription_test',
           nodeEnv: 'development',
         }),
-      /restricted to the spendwise_dev database/,
+      /restricted to the smart_subscription development database/,
     );
     assert.doesNotThrow(() =>
       assertDemoSeedAllowed({
         allowDemoSeed: true,
-        databaseName: 'spendwise_dev',
+        databaseName: 'smart_subscription',
         nodeEnv: 'development',
       }),
     );

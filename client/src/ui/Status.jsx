@@ -4,19 +4,15 @@
  */
 
 const subscriptionLabels = {
-  active: 'Active',
-  cancelled: 'Cancelled',
-  paused: 'Paused',
-  trial: 'Trial',
+  Active: 'Active',
+  Cancelled: 'Cancelled',
 };
 
 export function SubscriptionStatusChip({ archivedAt, status }) {
   const label = subscriptionLabels[status] || status;
   const style = {
-    active: 'pill-ink',
-    cancelled: 'border-[1.5px] border-(--ink) text-(--ink)',
-    paused: 'neu-pressed depth-1 text-(--ink)',
-    trial: 'border-[1.5px] border-dashed border-(--ink) text-(--ink)',
+    Active: 'pill-ink',
+    Cancelled: 'border-[1.5px] border-(--ink) text-(--ink)',
   }[status];
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
@@ -25,7 +21,7 @@ export function SubscriptionStatusChip({ archivedAt, status }) {
           style || 'border border-(--hairline-strong)'
         }`}
       >
-        <span className={status === 'cancelled' ? 'struck' : undefined}>{label}</span>
+        <span className={status === 'Cancelled' ? 'struck' : undefined}>{label}</span>
       </span>
       {archivedAt && (
         <span className="inline-flex items-center rounded-full border border-dashed border-(--graphite) px-2.5 py-1 text-xs font-bold leading-none text-(--graphite)">
@@ -86,10 +82,9 @@ export function PaymentStatusChip({ status }) {
 }
 
 const recommendationStatus = {
-  active: { dot: 'solid', label: 'Active' },
-  dismissed: { dot: 'outline', label: 'Dismissed' },
-  inactive: { dot: 'dashed', label: 'No longer applicable' },
-  resolved: { dot: 'half', label: 'Addressed' },
+  Dismissed: { dot: 'outline', label: 'Dismissed' },
+  Pending: { dot: 'solid', label: 'Pending' },
+  Reviewed: { dot: 'half', label: 'Reviewed' },
 };
 
 export function RecommendationStatusChip({ onInk = false, status }) {

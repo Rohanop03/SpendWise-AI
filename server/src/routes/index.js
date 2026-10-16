@@ -5,6 +5,7 @@ import { createAnalyticsRouter } from './analyticsRoutes.js';
 import { createAuthRouter } from './authRoutes.js';
 import { createBillingRouter } from './billingRoutes.js';
 import { createCategoryRouter, createServiceRouter } from './catalogRoutes.js';
+import { createDashboardRouter } from './dashboardRoutes.js';
 import { createHealthRouter } from './healthRoutes.js';
 import { createNotificationRouter } from './notificationRoutes.js';
 import { createPaymentRouter } from './paymentRoutes.js';
@@ -25,6 +26,7 @@ export function createApiRouter(database, appConfig) {
   router.use('/billing', createBillingRouter(database, auth.authenticate).router);
   router.use('/notifications', createNotificationRouter(database, auth.authenticate).router);
   router.use('/analytics', createAnalyticsRouter(database, auth.authenticate).router);
+  router.use('/dashboard', createDashboardRouter(database, auth.authenticate));
   router.use('/recommendations', createRecommendationRouter(database, auth.authenticate).router);
 
   return router;

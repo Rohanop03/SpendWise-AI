@@ -5,6 +5,7 @@ export const categorySeeds = [
   ['Cloud Storage', 'Cloud file storage, backup, and synchronization services.'],
   ['Fitness', 'Exercise, wellness, and fitness membership services.'],
   ['News', 'Digital newspapers, magazines, and journalism subscriptions.'],
+  ['Utilities', 'Phone, internet, electricity, and other recurring household services.'],
   ['Other', 'Subscriptions that do not fit another shared category.'],
 ];
 
@@ -25,16 +26,16 @@ export async function seedCatalog(database) {
     for (const [name, description] of categorySeeds) {
       const result = await transaction.query(
         `
-          INSERT INTO categories (name, description)
+          INSERT INTO category (category_name, description)
           VALUES ($1, $2)
-          ON CONFLICT ((lower(name)))
+          ON CONFLICT ((lower(category_name)))
           DO UPDATE SET description = EXCLUDED.description
-          RETURNING id, name
+          RETURNING category_id, category_name
         `,
         [name, description],
       );
 
-      categoriesByName.set(result.rows[0].name, result.rows[0].id);
+      categoriesByName.set(result.rows[0].category_name, result.rows[0].category_id);
     }
 
     for (const [name, categoryName, websiteUrl] of serviceSeeds) {

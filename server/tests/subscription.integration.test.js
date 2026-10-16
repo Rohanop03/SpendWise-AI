@@ -12,7 +12,7 @@ import { testAppConfig } from './helpers/testConfig.js';
 
 const origin = testAppConfig.corsOrigin;
 const password = 'correct horse battery staple';
-const expectedTestDatabaseName = 'spendwise_test';
+const expectedTestDatabaseName = 'smart_subscription_test';
 
 function csrfPost(client, path) {
   return client.post(path).set('Origin', origin).set('X-Requested-With', 'XMLHttpRequest');
@@ -20,8 +20,8 @@ function csrfPost(client, path) {
 
 async function registerUser(client, suffix = 'user1') {
   const response = await csrfPost(client, '/api/v1/auth/register').send({
-    displayName: `Stage 5 ${suffix}`,
     email: `stage5.${suffix}@example.invalid`,
+    name: `Stage 5 ${suffix}`,
     password,
   });
   assert.equal(response.status, 201);
@@ -33,7 +33,7 @@ async function registerUser(client, suffix = 'user1') {
 
 if (!config.testDatabaseUrl) {
   test('subscription integration tests require TEST_DATABASE_URL', {
-    skip: 'Set TEST_DATABASE_URL to the dedicated spendwise_test database.',
+    skip: 'Set TEST_DATABASE_URL to the dedicated smart_subscription_test database.',
   });
 } else {
   const database = createDatabase({ connectionString: config.testDatabaseUrl });
@@ -41,7 +41,17 @@ if (!config.testDatabaseUrl) {
 
   describe('subscription and catalog API integration', { concurrency: 1 }, () => {
     let categoriesList = [];
-    let servicesList = [];
+    const category = (name) => String(categoriesList.find((c) => c.name === name).id);
+    const subscriptionBody = (overrides = {}) => ({
+      billingCycle: 'Monthly',
+      categoryId: category('Entertainment'),
+      cost: 10,
+      currencyCode: 'USD',
+      renewalDate: '2026-11-01',
+      serviceName: 'Service',
+      startDate: '2026-10-01',
+      ...overrides,
+    });
 
     before(async () => {
       const identity = await database.query('SELECT current_database() AS database_name');
@@ -55,16 +65,15 @@ if (!config.testDatabaseUrl) {
       await runMigrations({ database });
       await seedCatalog(database);
 
-      const catResult = await database.query('SELECT id, name FROM categories ORDER BY name ASC');
+      const catResult = await database.query(
+        'SELECT category_id AS id, category_name AS name FROM category ORDER BY category_name ASC',
+      );
       categoriesList = catResult.rows;
-
-      const svcResult = await database.query('SELECT id, name FROM services ORDER BY name ASC');
-      servicesList = svcResult.rows;
     });
 
     beforeEach(async () => {
       await database.query(`
-        TRUNCATE TABLE subscriptions, auth_sessions, user_preferences, users
+        TRUNCATE TABLE subscription, auth_sessions, user_preferences, users
         RESTART IDENTITY CASCADE
       `);
     });
@@ -78,476 +87,259 @@ if (!config.testDatabaseUrl) {
 
       const categoriesResponse = await client.get('/api/v1/categories');
       assert.equal(categoriesResponse.status, 200);
-      assert.ok(Array.isArray(categoriesResponse.body.categories));
-      assert.ok(categoriesResponse.body.categories.length >= 7);
-      assert.ok(categoriesResponse.body.categories.some((cat) => cat.name === 'Entertainment'));
+      const names = categoriesResponse.body.categories.map((cat) => cat.name);
+      for (const name of ['Entertainment', 'Productivity', 'Fitness', 'Utilities']) {
+        assert.ok(names.includes(name), `${name} should be seeded`);
+      }
 
       const servicesResponse = await client.get('/api/v1/services');
       assert.equal(servicesResponse.status, 200);
-      assert.ok(Array.isArray(servicesResponse.body.services));
-      assert.ok(servicesResponse.body.services.length >= 7);
       assert.ok(servicesResponse.body.services.some((svc) => svc.name === 'Netflix'));
 
       const searchResponse = await client.get('/api/v1/services?search=spot');
       assert.equal(searchResponse.status, 200);
       assert.equal(searchResponse.body.services.length, 1);
       assert.equal(searchResponse.body.services[0].name, 'Spotify');
+
+      const wildcard = await client.get('/api/v1/services?search=%25');
+      assert.equal(wildcard.body.services.length, 0, '% is matched literally');
     });
 
     test('rejects unauthenticated requests to subscription endpoints', async () => {
       const client = request.agent(app);
 
-      const listResponse = await client.get('/api/v1/subscriptions');
-      assert.equal(listResponse.status, 401);
-
-      const createResponse = await client.post('/api/v1/subscriptions').send({});
-      assert.equal(createResponse.status, 401);
+      assert.equal((await client.get('/api/v1/subscriptions')).status, 401);
+      assert.equal((await client.post('/api/v1/subscriptions').send({})).status, 401);
+      assert.equal((await client.delete('/api/v1/subscriptions/1')).status, 401);
     });
 
-    test('creates catalog-based and custom-named subscriptions with constraints', async () => {
+    test('creates subscriptions with the spec fields and value sets', async () => {
       const client = request.agent(app);
       const { accessToken } = await registerUser(client, 'alice');
-      const entertainmentCategory = categoriesList.find((c) => c.name === 'Entertainment');
-      const netflixService = servicesList.find((s) => s.name === 'Netflix');
 
-      // Create catalog-based subscription
-      const catalogSubRes = await client
+      const created = await client
         .post('/api/v1/subscriptions')
         .set('Authorization', `Bearer ${accessToken}`)
-        .send({
-          billingCycle: 'monthly',
-          categoryId: String(entertainmentCategory.id),
-          currencyCode: 'USD',
-          nextRenewalDate: '2026-11-15',
-          notes: 'Standard 4K streaming plan',
-          planName: 'Premium 4K',
-          price: 22.99,
-          serviceId: String(netflixService.id),
-          startDate: '2026-10-15',
-          status: 'active',
-        });
+        .send(
+          subscriptionBody({
+            notes: 'Standard 4K streaming plan',
+            planName: 'Premium 4K',
+            renewalDate: '2026-11-15',
+            serviceName: 'Netflix',
+            startDate: '2026-10-15',
+            cost: 22.99,
+          }),
+        );
 
-      assert.equal(catalogSubRes.status, 201);
-      const catalogSub = catalogSubRes.body.subscription;
-      assert.equal(catalogSub.serviceName, 'Netflix');
-      assert.equal(catalogSub.serviceId, String(netflixService.id));
-      assert.equal(catalogSub.customServiceName, null);
-      assert.equal(catalogSub.price, 22.99);
-      assert.equal(catalogSub.status, 'active');
-      assert.equal(catalogSub.cancelledAt, null);
+      assert.equal(created.status, 201);
+      const subscription = created.body.subscription;
+      assert.equal(subscription.serviceName, 'Netflix');
+      assert.equal(subscription.cost, 22.99);
+      assert.equal(subscription.billingCycle, 'Monthly');
+      assert.equal(subscription.status, 'Active');
+      assert.equal(subscription.renewalDate, '2026-11-15');
+      assert.equal(subscription.lastUsedDate, null);
+      assert.equal(subscription.cancelledAt, null);
+      assert.equal(subscription.categoryName, 'Entertainment');
 
-      // Create custom-named subscription
-      const customSubRes = await client
+      const yearly = await client
         .post('/api/v1/subscriptions')
         .set('Authorization', `Bearer ${accessToken}`)
-        .send({
-          billingCycle: 'yearly',
-          categoryId: String(entertainmentCategory.id),
-          currencyCode: 'USD',
-          customServiceName: 'Campus Recreation Gym',
-          nextRenewalDate: '2027-10-15',
-          price: 150.0,
-          startDate: '2026-10-15',
-          status: 'active',
-        });
-
-      assert.equal(customSubRes.status, 201);
-      const customSub = customSubRes.body.subscription;
-      assert.equal(customSub.serviceName, 'Campus Recreation Gym');
-      assert.equal(customSub.serviceId, null);
-      assert.equal(customSub.customServiceName, 'Campus Recreation Gym');
-      assert.equal(customSub.price, 150.0);
+        .send(subscriptionBody({ billingCycle: 'Yearly', cost: 150, renewalDate: '2027-10-15', serviceName: 'Campus Gym' }));
+      assert.equal(yearly.status, 201);
+      assert.equal(yearly.body.subscription.monthlyEquivalent, 12.5);
     });
 
-    test('enforces mutual exclusivity, category existence, and date rules on creation', async () => {
+    test('validates cost, value sets, category and dates on creation', async () => {
       const client = request.agent(app);
       const { accessToken } = await registerUser(client, 'bob');
-      const entertainmentCategory = categoriesList.find((c) => c.name === 'Entertainment');
-      const netflixService = servicesList.find((s) => s.name === 'Netflix');
+      const post = (body) =>
+        client.post('/api/v1/subscriptions').set('Authorization', `Bearer ${accessToken}`).send(body);
 
-      // Both serviceId and customServiceName
-      const bothRes = await client
-        .post('/api/v1/subscriptions')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send({
-          billingCycle: 'monthly',
-          categoryId: String(entertainmentCategory.id),
-          currencyCode: 'USD',
-          customServiceName: 'Netflix Alternative',
-          nextRenewalDate: '2026-11-15',
-          price: 15.0,
-          serviceId: String(netflixService.id),
-          startDate: '2026-10-15',
-          status: 'active',
-        });
-      assert.equal(bothRes.status, 400);
+      for (const body of [
+        subscriptionBody({ cost: 0 }),
+        subscriptionBody({ cost: -1 }),
+        subscriptionBody({ billingCycle: 'Quarterly' }),
+        subscriptionBody({ billingCycle: 'monthly' }),
+        subscriptionBody({ status: 'Trial' }),
+        subscriptionBody({ serviceName: '' }),
+        subscriptionBody({ serviceName: 'x'.repeat(101) }),
+        subscriptionBody({ renewalDate: undefined }),
+        subscriptionBody({ renewalDate: '2026-09-01' }),
+        subscriptionBody({ lastUsedDate: '2026-09-01' }),
+        subscriptionBody({ customServiceName: 'Old field' }),
+      ]) {
+        const response = await post(body);
+        assert.equal(response.status, 400, JSON.stringify(body));
+      }
 
-      // Neither serviceId nor customServiceName
-      const neitherRes = await client
-        .post('/api/v1/subscriptions')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send({
-          billingCycle: 'monthly',
-          categoryId: String(entertainmentCategory.id),
-          currencyCode: 'USD',
-          nextRenewalDate: '2026-11-15',
-          price: 15.0,
-          startDate: '2026-10-15',
-          status: 'active',
-        });
-      assert.equal(neitherRes.status, 400);
-
-      // Non-existent category
-      const badCatRes = await client
-        .post('/api/v1/subscriptions')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send({
-          billingCycle: 'monthly',
-          categoryId: '999999',
-          currencyCode: 'USD',
-          customServiceName: 'Special Service',
-          nextRenewalDate: '2026-11-15',
-          price: 10.0,
-          startDate: '2026-10-15',
-          status: 'active',
-        });
-      assert.equal(badCatRes.status, 400);
-      assert.equal(badCatRes.body.code, 'INVALID_CATEGORY');
-
-      // nextRenewalDate before startDate
-      const badDateRes = await client
-        .post('/api/v1/subscriptions')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send({
-          billingCycle: 'monthly',
-          categoryId: String(entertainmentCategory.id),
-          currencyCode: 'USD',
-          customServiceName: 'Special Service',
-          nextRenewalDate: '2026-09-01',
-          price: 10.0,
-          startDate: '2026-10-15',
-          status: 'active',
-        });
-      assert.equal(badDateRes.status, 400);
-
-      // Trial status requires trialEndDate
-      const missingTrialEndRes = await client
-        .post('/api/v1/subscriptions')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send({
-          billingCycle: 'monthly',
-          categoryId: String(entertainmentCategory.id),
-          currencyCode: 'USD',
-          customServiceName: 'Free Trial Service',
-          nextRenewalDate: '2026-11-15',
-          price: 0.0,
-          startDate: '2026-10-15',
-          status: 'trial',
-        });
-      assert.equal(missingTrialEndRes.status, 400);
-
-      // Status cancelled sets cancelled_at
-      const cancelledRes = await client
-        .post('/api/v1/subscriptions')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send({
-          billingCycle: 'monthly',
-          categoryId: String(entertainmentCategory.id),
-          currencyCode: 'USD',
-          customServiceName: 'Cancelled Service',
-          price: 10.0,
-          startDate: '2026-10-15',
-          status: 'cancelled',
-        });
-      assert.equal(cancelledRes.status, 201);
-      assert.ok(cancelledRes.body.subscription.cancelledAt);
+      const badCategory = await post(subscriptionBody({ categoryId: '999999' }));
+      assert.equal(badCategory.status, 400);
+      assert.equal(badCategory.body.code, 'INVALID_CATEGORY');
     });
 
     test('lists subscriptions with pagination, filtering, search, and sorting', async () => {
       const client = request.agent(app);
       const { accessToken } = await registerUser(client, 'charlie');
-      const catEnt = categoriesList.find((c) => c.name === 'Entertainment');
-      const catProd = categoriesList.find((c) => c.name === 'Productivity');
+      const auth = { Authorization: `Bearer ${accessToken}` };
 
-      const seedData = [
-        {
-          billingCycle: 'monthly',
-          categoryId: String(catEnt.id),
-          currencyCode: 'USD',
-          customServiceName: 'Alpha Music',
-          nextRenewalDate: '2026-11-01',
-          planName: 'Family',
-          price: 14.99,
-          startDate: '2026-10-01',
-          status: 'active',
-        },
-        {
-          billingCycle: 'yearly',
-          categoryId: String(catEnt.id),
-          currencyCode: 'USD',
-          customServiceName: 'Beta Video',
-          nextRenewalDate: '2027-01-15',
-          planName: 'Pro',
-          price: 120.0,
-          startDate: '2026-01-15',
-          status: 'paused',
-        },
-        {
-          billingCycle: 'monthly',
-          categoryId: String(catProd.id),
-          currencyCode: 'USD',
-          customServiceName: 'Gamma Notes',
-          nextRenewalDate: '2026-11-20',
-          planName: 'Team',
-          price: 8.0,
-          startDate: '2026-10-20',
-          status: 'active',
-        },
-      ];
-
-      for (const item of seedData) {
-        const res = await client
-          .post('/api/v1/subscriptions')
-          .set('Authorization', `Bearer ${accessToken}`)
-          .send(item);
-        assert.equal(res.status, 201);
+      for (const body of [
+        subscriptionBody({ cost: 14.99, planName: 'Family', serviceName: 'Alpha Music' }),
+        subscriptionBody({ billingCycle: 'Yearly', cost: 120, planName: 'Pro', renewalDate: '2027-01-15', serviceName: 'Beta Video', startDate: '2026-01-15' }),
+        subscriptionBody({ categoryId: category('Productivity'), cost: 8, planName: 'Team', renewalDate: '2026-11-20', serviceName: 'Gamma Notes' }),
+      ]) {
+        assert.equal((await client.post('/api/v1/subscriptions').set(auth).send(body)).status, 201);
       }
 
-      // Default list
-      const listRes = await client
-        .get('/api/v1/subscriptions')
-        .set('Authorization', `Bearer ${accessToken}`);
-      assert.equal(listRes.status, 200);
+      const listRes = await client.get('/api/v1/subscriptions').set(auth);
       assert.equal(listRes.body.items.length, 3);
       assert.equal(listRes.body.pagination.totalCount, 3);
 
-      // Filter by status=paused
-      const pausedRes = await client
-        .get('/api/v1/subscriptions?status=paused')
-        .set('Authorization', `Bearer ${accessToken}`);
-      assert.equal(pausedRes.status, 200);
-      assert.equal(pausedRes.body.items.length, 1);
-      assert.equal(pausedRes.body.items[0].serviceName, 'Beta Video');
+      const yearlyRes = await client.get('/api/v1/subscriptions?billingCycle=Yearly').set(auth);
+      assert.deepEqual(yearlyRes.body.items.map((item) => item.serviceName), ['Beta Video']);
 
-      // Filter by category
-      const prodRes = await client
-        .get(`/api/v1/subscriptions?categoryId=${catProd.id}`)
-        .set('Authorization', `Bearer ${accessToken}`);
-      assert.equal(prodRes.status, 200);
-      assert.equal(prodRes.body.items.length, 1);
-      assert.equal(prodRes.body.items[0].serviceName, 'Gamma Notes');
+      const prodRes = await client.get(`/api/v1/subscriptions?categoryId=${category('Productivity')}`).set(auth);
+      assert.deepEqual(prodRes.body.items.map((item) => item.serviceName), ['Gamma Notes']);
 
-      // Search by service or plan
-      const searchRes = await client
-        .get('/api/v1/subscriptions?search=family')
-        .set('Authorization', `Bearer ${accessToken}`);
-      assert.equal(searchRes.status, 200);
-      assert.equal(searchRes.body.items.length, 1);
-      assert.equal(searchRes.body.items[0].serviceName, 'Alpha Music');
+      const searchRes = await client.get('/api/v1/subscriptions?search=family').set(auth);
+      assert.deepEqual(searchRes.body.items.map((item) => item.serviceName), ['Alpha Music']);
 
-      // Sort by price asc
-      const sortRes = await client
-        .get('/api/v1/subscriptions?sortBy=price&sortOrder=asc')
-        .set('Authorization', `Bearer ${accessToken}`);
-      assert.equal(sortRes.status, 200);
-      assert.equal(sortRes.body.items[0].price, 8.0);
-      assert.equal(sortRes.body.items[2].price, 120.0);
+      const sortRes = await client.get('/api/v1/subscriptions?sortBy=cost&sortOrder=asc').set(auth);
+      assert.equal(sortRes.body.items[0].cost, 8);
+      assert.equal(sortRes.body.items[2].cost, 120);
 
-      // Pagination
-      const pageRes = await client
-        .get('/api/v1/subscriptions?limit=2&page=1')
-        .set('Authorization', `Bearer ${accessToken}`);
-      assert.equal(pageRes.status, 200);
+      const pageRes = await client.get('/api/v1/subscriptions?limit=2&page=1').set(auth);
       assert.equal(pageRes.body.items.length, 2);
       assert.equal(pageRes.body.pagination.totalPages, 2);
+
+      assert.equal((await client.get('/api/v1/subscriptions?status=paused').set(auth)).status, 400);
     });
 
-    test('updates subscription fields, handles service switching, and enforces status transitions', async () => {
+    test('updates fields and status; a cancelled subscription keeps its renewal date', async () => {
       const client = request.agent(app);
       const { accessToken } = await registerUser(client, 'dana');
-      const catEnt = categoriesList.find((c) => c.name === 'Entertainment');
-      const netflixService = servicesList.find((s) => s.name === 'Netflix');
+      const auth = { Authorization: `Bearer ${accessToken}` };
 
-      const createRes = await client
-        .post('/api/v1/subscriptions')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send({
-          billingCycle: 'monthly',
-          categoryId: String(catEnt.id),
-          currencyCode: 'USD',
-          customServiceName: 'Initial Custom',
-          nextRenewalDate: '2026-11-01',
-          price: 10.0,
-          startDate: '2026-10-01',
-          status: 'active',
-        });
+      const createRes = await client.post('/api/v1/subscriptions').set(auth).send(subscriptionBody({ serviceName: 'Initial' }));
       const subId = createRes.body.subscription.id;
 
-      // Partial update price and notes
-      const patchRes1 = await client
-        .patch(`/api/v1/subscriptions/${subId}`)
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send({
-          notes: 'Updated note',
-          price: 12.5,
-        });
-      assert.equal(patchRes1.status, 200);
-      assert.equal(patchRes1.body.subscription.price, 12.5);
-      assert.equal(patchRes1.body.subscription.notes, 'Updated note');
+      const patch1 = await client.patch(`/api/v1/subscriptions/${subId}`).set(auth).send({ cost: 12.5, notes: 'Updated note', serviceName: 'Renamed' });
+      assert.equal(patch1.status, 200);
+      assert.equal(patch1.body.subscription.cost, 12.5);
+      assert.equal(patch1.body.subscription.serviceName, 'Renamed');
 
-      // Switch to catalog service
-      const patchRes2 = await client
-        .patch(`/api/v1/subscriptions/${subId}`)
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send({
-          serviceId: String(netflixService.id),
-        });
-      assert.equal(patchRes2.status, 200);
-      assert.equal(patchRes2.body.subscription.serviceName, 'Netflix');
-      assert.equal(patchRes2.body.subscription.customServiceName, null);
-      assert.equal(patchRes2.body.subscription.serviceId, String(netflixService.id));
+      const cancelled = await client.patch(`/api/v1/subscriptions/${subId}`).set(auth).send({ status: 'Cancelled' });
+      assert.equal(cancelled.body.subscription.status, 'Cancelled');
+      assert.ok(cancelled.body.subscription.cancelledAt);
+      assert.equal(cancelled.body.subscription.renewalDate, '2026-11-01');
 
-      // Switch status to cancelled: sets cancelled_at
-      const patchRes3 = await client
-        .patch(`/api/v1/subscriptions/${subId}`)
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send({
-          status: 'cancelled',
-        });
-      assert.equal(patchRes3.status, 200);
-      assert.equal(patchRes3.body.subscription.status, 'cancelled');
-      assert.ok(patchRes3.body.subscription.cancelledAt);
+      const reactivated = await client.patch(`/api/v1/subscriptions/${subId}`).set(auth).send({ renewalDate: '2026-12-01', status: 'Active' });
+      assert.equal(reactivated.body.subscription.status, 'Active');
+      assert.equal(reactivated.body.subscription.cancelledAt, null);
 
-      // Reactivate: clears cancelled_at
-      const patchRes4 = await client
-        .patch(`/api/v1/subscriptions/${subId}`)
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send({
-          nextRenewalDate: '2026-12-01',
-          status: 'active',
-        });
-      assert.equal(patchRes4.status, 200);
-      assert.equal(patchRes4.body.subscription.status, 'active');
-      assert.equal(patchRes4.body.subscription.cancelledAt, null);
+      const history = await client.get(`/api/v1/subscriptions/${subId}/history`).set(auth);
+      assert.equal(history.status, 200);
+      assert.deepEqual(history.body.items.map((item) => item.changedFields), [
+        ['status', 'renewal_date'],
+        ['status'],
+        ['cost'],
+      ]);
     });
 
-    test('supports soft archival and restoration without deleting records', async () => {
+    test('cancels with a final payment in one transaction', async () => {
+      const client = request.agent(app);
+      const { accessToken } = await registerUser(client, 'frank');
+      const auth = { Authorization: `Bearer ${accessToken}` };
+      const subId = (await client.post('/api/v1/subscriptions').set(auth).send(subscriptionBody())).body.subscription.id;
+
+      const failed = await csrfPost(client, `/api/v1/subscriptions/${subId}/cancel`).set(auth).send({ finalPayment: { amount: 0, paymentDate: '2026-10-20' } });
+      assert.equal(failed.status, 400);
+      assert.equal((await client.get(`/api/v1/subscriptions/${subId}`).set(auth)).body.subscription.status, 'Active');
+
+      const ok = await csrfPost(client, `/api/v1/subscriptions/${subId}/cancel`).set(auth).send({ finalPayment: { amount: '10.00', paymentDate: '2026-10-20' } });
+      assert.equal(ok.status, 200);
+      assert.equal(ok.body.subscription.status, 'Cancelled');
+      assert.equal(ok.body.subscription.renewalDate, '2026-11-01', 'trigger skips the cancelled row');
+      assert.equal(ok.body.payment.amount, '10.00');
+
+      const again = await csrfPost(client, `/api/v1/subscriptions/${subId}/cancel`).set(auth).send({});
+      assert.equal(again.status, 409);
+    });
+
+    test('marks usage and lists unused subscriptions (FR8)', async () => {
+      const client = request.agent(app);
+      const { accessToken } = await registerUser(client, 'gina');
+      const auth = { Authorization: `Bearer ${accessToken}` };
+      const subId = (await client.post('/api/v1/subscriptions').set(auth).send(subscriptionBody({ startDate: '2025-01-01' }))).body.subscription.id;
+
+      const used = await client.patch(`/api/v1/subscriptions/${subId}/used`).set(auth).send({});
+      assert.equal(used.status, 200);
+      assert.equal(used.body.subscription.lastUsedDate, new Date().toISOString().slice(0, 10));
+
+      await client.patch(`/api/v1/subscriptions/${subId}`).set(auth).send({ lastUsedDate: '2025-02-01' });
+      const unused = await client.get('/api/v1/subscriptions?unusedDays=60').set(auth);
+      assert.deepEqual(unused.body.items.map((item) => item.id), [subId]);
+
+      const future = await client.patch(`/api/v1/subscriptions/${subId}/used`).set(auth).send({ lastUsedDate: '2999-01-01' });
+      assert.equal(future.status, 400);
+    });
+
+    test('supports soft archival and restoration, and hard deletion', async () => {
       const client = request.agent(app);
       const { accessToken } = await registerUser(client, 'eva');
-      const catEnt = categoriesList.find((c) => c.name === 'Entertainment');
+      const auth = { Authorization: `Bearer ${accessToken}` };
 
-      const createRes = await client
-        .post('/api/v1/subscriptions')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send({
-          billingCycle: 'monthly',
-          categoryId: String(catEnt.id),
-          currencyCode: 'USD',
-          customServiceName: 'Old Membership',
-          nextRenewalDate: '2026-11-01',
-          price: 25.0,
-          startDate: '2026-10-01',
-          status: 'active',
-        });
-      const subId = createRes.body.subscription.id;
+      const subId = (await client.post('/api/v1/subscriptions').set(auth).send(subscriptionBody({ serviceName: 'Old Membership' }))).body.subscription.id;
 
-      // Archive subscription
-      const archiveRes = await client
-        .post(`/api/v1/subscriptions/${subId}/archive`)
-        .set('Authorization', `Bearer ${accessToken}`);
+      const archiveRes = await csrfPost(client, `/api/v1/subscriptions/${subId}/archive`).set(auth);
       assert.equal(archiveRes.status, 200);
       assert.ok(archiveRes.body.subscription.archivedAt);
+      assert.equal((await client.get('/api/v1/subscriptions').set(auth)).body.items.length, 0);
+      assert.equal((await client.get('/api/v1/subscriptions?archived=true').set(auth)).body.items.length, 1);
 
-      // Excluded from default list
-      const defaultListRes = await client
-        .get('/api/v1/subscriptions')
-        .set('Authorization', `Bearer ${accessToken}`);
-      assert.equal(defaultListRes.status, 200);
-      assert.equal(defaultListRes.body.items.length, 0);
+      const editArchived = await client.patch(`/api/v1/subscriptions/${subId}`).set(auth).send({ cost: 30 });
+      assert.equal(editArchived.status, 400);
+      assert.equal(editArchived.body.code, 'SUBSCRIPTION_ARCHIVED');
 
-      // Present in archived=true query
-      const archivedListRes = await client
-        .get('/api/v1/subscriptions?archived=true')
-        .set('Authorization', `Bearer ${accessToken}`);
-      assert.equal(archivedListRes.status, 200);
-      assert.equal(archivedListRes.body.items.length, 1);
-      assert.equal(archivedListRes.body.items[0].id, subId);
-
-      // Updating an archived subscription is blocked
-      const editArchivedRes = await client
-        .patch(`/api/v1/subscriptions/${subId}`)
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send({ price: 30.0 });
-      assert.equal(editArchivedRes.status, 400);
-      assert.equal(editArchivedRes.body.code, 'SUBSCRIPTION_ARCHIVED');
-
-      // Restore subscription
-      const restoreRes = await client
-        .post(`/api/v1/subscriptions/${subId}/restore`)
-        .set('Authorization', `Bearer ${accessToken}`);
-      assert.equal(restoreRes.status, 200);
+      const restoreRes = await csrfPost(client, `/api/v1/subscriptions/${subId}/restore`).set(auth);
       assert.equal(restoreRes.body.subscription.archivedAt, null);
 
-      // Visible in default list again
-      const restoredListRes = await client
-        .get('/api/v1/subscriptions')
-        .set('Authorization', `Bearer ${accessToken}`);
-      assert.equal(restoredListRes.status, 200);
-      assert.equal(restoredListRes.body.items.length, 1);
+      await csrfPost(client, `/api/v1/subscriptions/${subId}/payments`).set(auth).send({ amount: '25.00', paymentDate: '2026-10-05' });
+      const deleted = await client.delete(`/api/v1/subscriptions/${subId}`).set(auth);
+      assert.equal(deleted.status, 204);
+      assert.equal((await client.get(`/api/v1/subscriptions/${subId}`).set(auth)).status, 404);
+      const leftovers = await database.query('SELECT count(*)::int AS count FROM payment_history WHERE subscription_id = $1', [subId]);
+      assert.equal(leftovers.rows[0].count, 0);
+    });
+
+    test('rejects malformed identifiers with 400', async () => {
+      const client = request.agent(app);
+      const { accessToken } = await registerUser(client, 'hal');
+      for (const id of ['abc', '0', '2147483648', '99999999999999999999', '1%20OR%201%3D1']) {
+        const response = await client.get(`/api/v1/subscriptions/${id}`).set('Authorization', `Bearer ${accessToken}`);
+        assert.equal(response.status, 400, id);
+        assert.equal(response.body.code, 'INVALID_ID');
+      }
     });
 
     test('strictly enforces user isolation on all read, write, and status endpoints', async () => {
       const client = request.agent(app);
       const userA = await registerUser(client, 'userA');
       const userB = await registerUser(client, 'userB');
-      const catEnt = categoriesList.find((c) => c.name === 'Entertainment');
+      const asB = { Authorization: `Bearer ${userB.accessToken}` };
 
-      // User A creates a subscription
-      const createRes = await client
-        .post('/api/v1/subscriptions')
-        .set('Authorization', `Bearer ${userA.accessToken}`)
-        .send({
-          billingCycle: 'monthly',
-          categoryId: String(catEnt.id),
-          currencyCode: 'USD',
-          customServiceName: "User A's Secret Service",
-          nextRenewalDate: '2026-11-01',
-          price: 50.0,
-          startDate: '2026-10-01',
-          status: 'active',
-        });
-      const subId = createRes.body.subscription.id;
+      const subId = (await client.post('/api/v1/subscriptions').set('Authorization', `Bearer ${userA.accessToken}`).send(subscriptionBody({ cost: 50, serviceName: "User A's Secret Service" }))).body.subscription.id;
 
-      // User B attempts GET /subscriptions/:id -> 404
-      const getRes = await client
-        .get(`/api/v1/subscriptions/${subId}`)
-        .set('Authorization', `Bearer ${userB.accessToken}`);
-      assert.equal(getRes.status, 404);
+      assert.equal((await client.get(`/api/v1/subscriptions/${subId}`).set(asB)).status, 404);
+      assert.equal((await client.patch(`/api/v1/subscriptions/${subId}`).set(asB).send({ cost: 1 })).status, 404);
+      assert.equal((await client.delete(`/api/v1/subscriptions/${subId}`).set(asB)).status, 404);
+      assert.equal((await csrfPost(client, `/api/v1/subscriptions/${subId}/archive`).set(asB)).status, 404);
+      assert.equal((await csrfPost(client, `/api/v1/subscriptions/${subId}/restore`).set(asB)).status, 404);
+      assert.equal((await csrfPost(client, `/api/v1/subscriptions/${subId}/cancel`).set(asB).send({})).status, 404);
+      assert.equal((await client.patch(`/api/v1/subscriptions/${subId}/used`).set(asB).send({})).status, 404);
+      assert.equal((await client.get(`/api/v1/subscriptions/${subId}/history`).set(asB)).status, 404);
 
-      // User B attempts PATCH /subscriptions/:id -> 404
-      const patchRes = await client
-        .patch(`/api/v1/subscriptions/${subId}`)
-        .set('Authorization', `Bearer ${userB.accessToken}`)
-        .send({ price: 0.0 });
-      assert.equal(patchRes.status, 404);
-
-      // User B attempts POST /subscriptions/:id/archive -> 404
-      const archiveRes = await client
-        .post(`/api/v1/subscriptions/${subId}/archive`)
-        .set('Authorization', `Bearer ${userB.accessToken}`);
-      assert.equal(archiveRes.status, 404);
-
-      // User B attempts POST /subscriptions/:id/restore -> 404
-      const restoreRes = await client
-        .post(`/api/v1/subscriptions/${subId}/restore`)
-        .set('Authorization', `Bearer ${userB.accessToken}`);
-      assert.equal(restoreRes.status, 404);
-
-      // User B lists subscriptions -> empty
-      const listRes = await client
-        .get('/api/v1/subscriptions')
-        .set('Authorization', `Bearer ${userB.accessToken}`);
-      assert.equal(listRes.status, 200);
+      const listRes = await client.get('/api/v1/subscriptions').set(asB);
       assert.equal(listRes.body.items.length, 0);
     });
   });

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { copyFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, beforeEach, describe, it, test } from 'node:test';
@@ -10,7 +10,17 @@ import { createDatabase } from '../src/config/db.js';
 import config from '../src/config/env.js';
 import { defaultMigrationsDirectory, runMigrations } from '../src/db/migrationRunner.js';
 
-const expectedTestDatabaseName = 'spendwise_test';
+const expectedTestDatabaseName = 'smart_subscription_test';
+const allMigrations = [
+  '001_initial_schema',
+  '002_auth_sessions',
+  '003_notification_target_dates',
+  '004_ai_cost_optimization',
+  '005_advanced_dbms',
+  '006_spec_schema_alignment',
+  '007_spec_db_objects',
+  '008_drop_recommendation_subscriptions',
+];
 
 async function expectPostgresError(promise, expectedCode, expectedConstraint) {
   const expectedCodes = Array.isArray(expectedCode) ? expectedCode : [expectedCode];
@@ -26,9 +36,9 @@ async function expectPostgresError(promise, expectedCode, expectedConstraint) {
 async function insertUser(database, suffix) {
   const result = await database.query(
     `
-      INSERT INTO users (display_name, email, password_hash)
+      INSERT INTO users (name, email, password_hash)
       VALUES ($1, $2, $3)
-      RETURNING id
+      RETURNING user_id
     `,
     [
       `Test User ${suffix}`,
@@ -37,50 +47,35 @@ async function insertUser(database, suffix) {
     ],
   );
 
-  return result.rows[0].id;
+  return result.rows[0].user_id;
 }
 
 async function insertCategory(database, name = 'Test Category') {
-  const result = await database.query(`INSERT INTO categories (name) VALUES ($1) RETURNING id`, [
-    name,
-  ]);
-  return result.rows[0].id;
-}
-
-async function insertService(database, categoryId, name = 'Test Service') {
   const result = await database.query(
-    `INSERT INTO services (name, default_category_id) VALUES ($1, $2) RETURNING id`,
-    [name, categoryId],
+    `INSERT INTO category (category_name) VALUES ($1) RETURNING category_id`,
+    [name],
   );
-  return result.rows[0].id;
+  return result.rows[0].category_id;
 }
 
-async function insertSubscription(database, { categoryId, serviceId, userId, planName = 'Plan' }) {
+async function insertSubscription(database, { categoryId, userId, serviceName = 'Service' }) {
   const result = await database.query(
     `
-      INSERT INTO subscriptions (
-        user_id,
-        service_id,
-        category_id,
-        plan_name,
-        price,
-        currency_code,
-        billing_cycle,
-        status,
-        start_date,
-        next_renewal_date
+      INSERT INTO subscription (
+        user_id, category_id, service_name, cost, currency_code, billing_cycle,
+        start_date, renewal_date
       )
-      VALUES ($1, $2, $3, $4, 99.00, 'USD', 'monthly', 'active', DATE '2026-01-01', DATE '2026-11-01')
-      RETURNING id
+      VALUES ($1, $2, $3, 99.00, 'USD', 'Monthly', DATE '2026-01-01', DATE '2026-11-01')
+      RETURNING subscription_id
     `,
-    [userId, serviceId, categoryId, planName],
+    [userId, categoryId, serviceName],
   );
-  return result.rows[0].id;
+  return result.rows[0].subscription_id;
 }
 
 if (!config.testDatabaseUrl) {
   test('PostgreSQL integration tests require TEST_DATABASE_URL', {
-    skip: 'Set TEST_DATABASE_URL to the dedicated spendwise_test database.',
+    skip: 'Set TEST_DATABASE_URL to the dedicated smart_subscription_test database.',
   });
 } else {
   const database = createDatabase({ connectionString: config.testDatabaseUrl });
@@ -94,7 +89,7 @@ if (!config.testDatabaseUrl) {
       assert.equal(
         identity.rows[0].database_name,
         expectedTestDatabaseName,
-        'Destructive integration tests may run only against spendwise_test.',
+        'Destructive integration tests may run only against smart_subscription_test.',
       );
 
       await database.withClient(async (client) => {
@@ -103,27 +98,20 @@ if (!config.testDatabaseUrl) {
       });
 
       const migrationResult = await runMigrations({ database });
-      assert.deepEqual(migrationResult.applied, [
-        '001_initial_schema',
-        '002_auth_sessions',
-        '003_notification_target_dates',
-        '004_ai_cost_optimization',
-        '005_advanced_dbms',
-      ]);
+      assert.deepEqual(migrationResult.applied, allMigrations);
     });
 
     beforeEach(async () => {
       await database.query(`
         TRUNCATE TABLE
           auth_sessions,
-          recommendation_subscriptions,
-          recommendations,
+          recommendation,
           notifications,
           refunds,
-          payments,
-          subscriptions,
+          payment_history,
+          subscription,
           services,
-          categories,
+          category,
           user_preferences,
           users
         RESTART IDENTITY CASCADE
@@ -145,41 +133,49 @@ if (!config.testDatabaseUrl) {
 
       for (const requiredTable of [
         'auth_sessions',
-        'categories',
+        'category',
         'notifications',
-        'payments',
-        'recommendations',
-        'recommendation_subscriptions',
+        'payment_history',
+        'recommendation',
         'refunds',
         'schema_migrations',
         'services',
+        'subscription',
         'subscription_audit_events',
-        'subscriptions',
         'user_preferences',
         'users',
       ]) {
         assert.ok(tableNames.includes(requiredTable), `${requiredTable} should exist`);
       }
+      assert.ok(!tableNames.includes('recommendation_subscriptions'), 'link table is dropped');
 
       const columns = await database.query(`
         SELECT table_name, column_name
         FROM information_schema.columns
         WHERE table_schema = 'public'
-          AND table_name IN ('users', 'subscriptions', 'payments', 'refunds')
+          AND table_name IN ('users', 'subscription', 'payment_history', 'refunds', 'recommendation')
       `);
       const availableColumns = new Set(
         columns.rows.map((row) => `${row.table_name}.${row.column_name}`),
       );
 
       for (const requiredColumn of [
+        'users.user_id',
+        'users.name',
         'users.email',
         'users.password_hash',
-        'subscriptions.user_id',
-        'subscriptions.service_id',
-        'subscriptions.custom_service_name',
-        'subscriptions.archived_at',
-        'payments.subscription_id',
-        'payments.payment_status',
+        'subscription.user_id',
+        'subscription.service_name',
+        'subscription.cost',
+        'subscription.renewal_date',
+        'subscription.last_used_date',
+        'subscription.archived_at',
+        'payment_history.subscription_id',
+        'payment_history.payment_status',
+        'recommendation.subscription_id',
+        'recommendation.recommendation_text',
+        'recommendation.potential_savings',
+        'recommendation.generated_date',
         'refunds.payment_id',
         'refunds.refund_status',
       ]) {
@@ -199,11 +195,12 @@ if (!config.testDatabaseUrl) {
       assert.ok(countByType('f') >= 13, 'foreign keys should exist');
       assert.ok(countByType('c') >= 20, 'check constraints should exist');
       for (const constraintName of [
-        'fk_payments_subscription',
+        'fk_payment_history_subscription',
+        'fk_payment_history_subscription_currency',
         'fk_notifications_owned_subscription',
-        'fk_recommendation_subscriptions_owned_subscription',
-        'chk_subscriptions_service_source',
-        'chk_payments_status',
+        'fk_recommendation_owned_subscription',
+        'chk_subscription_cost',
+        'chk_payment_history_status',
       ]) {
         assert.ok(constraintNames.has(constraintName), `${constraintName} should exist`);
       }
@@ -213,58 +210,58 @@ if (!config.testDatabaseUrl) {
       const firstUserId = await insertUser(database, 'integrity-one');
       const secondUserId = await insertUser(database, 'integrity-two');
       const categoryId = await insertCategory(database);
-      const serviceId = await insertService(database, categoryId);
       const subscriptionId = await insertSubscription(database, {
         categoryId,
-        serviceId,
         userId: firstUserId,
       });
 
       await expectPostgresError(
-        database.query(
-          `INSERT INTO users (display_name, email, password_hash) VALUES ($1, $2, $3)`,
-          [
-            'Duplicate Case',
-            'USER.INTEGRITY-ONE@EXAMPLE.INVALID',
-            '$2b$12$integrationfixturehash000000000000000000000000000000',
-          ],
-        ),
+        database.query(`INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3)`, [
+          'Duplicate Case',
+          'USER.INTEGRITY-ONE@EXAMPLE.INVALID',
+          '$2b$12$integrationfixturehash000000000000000000000000000000',
+        ]),
         '23505',
       );
-      await expectPostgresError(
-        database.query(
-          `
-            INSERT INTO subscriptions (
-              user_id, service_id, category_id, price, currency_code, billing_cycle,
-              status, start_date, next_renewal_date
-            ) VALUES ($1, $2, $3, -1, 'USD', 'monthly', 'active', CURRENT_DATE, CURRENT_DATE)
-          `,
-          [firstUserId, serviceId, categoryId],
-        ),
-        '23514',
-      );
+      for (const cost of [-1, 0]) {
+        await expectPostgresError(
+          database.query(
+            `
+              INSERT INTO subscription (
+                user_id, category_id, service_name, cost, currency_code, billing_cycle,
+                start_date, renewal_date
+              ) VALUES ($1, $2, 'Bad cost', $3, 'USD', 'Monthly', CURRENT_DATE, CURRENT_DATE)
+            `,
+            [firstUserId, categoryId, cost],
+          ),
+          '23514',
+          'chk_subscription_cost',
+        );
+      }
 
-      for (const [column, invalidValue] of [
-        ['billing_cycle', 'weekly'],
-        ['status', 'unknown'],
-        ['currency_code', 'usd'],
+      // Enum columns reject unknown labels (22P02); CHECK columns reject bad formats (23514).
+      for (const [column, invalidValue, code] of [
+        ['billing_cycle', 'weekly', '22P02'],
+        ['billing_cycle', 'monthly', '22P02'],
+        ['status', 'unknown', '22P02'],
+        ['currency_code', 'usd', '23514'],
       ]) {
         await expectPostgresError(
-          database.query(`UPDATE subscriptions SET ${column} = $1 WHERE id = $2`, [
+          database.query(`UPDATE subscription SET ${column} = $1 WHERE subscription_id = $2`, [
             invalidValue,
             subscriptionId,
           ]),
-          '23514',
+          code,
         );
       }
 
       await expectPostgresError(
         database.query(
           `
-            INSERT INTO subscriptions (
-              user_id, custom_service_name, category_id, price, currency_code,
-              billing_cycle, status, start_date, next_renewal_date
-            ) VALUES (999999, 'Missing Owner', $1, 1, 'USD', 'monthly', 'active', CURRENT_DATE, CURRENT_DATE)
+            INSERT INTO subscription (
+              user_id, service_name, category_id, cost, currency_code,
+              billing_cycle, start_date, renewal_date
+            ) VALUES (999999, 'Missing Owner', $1, 1, 'USD', 'Monthly', CURRENT_DATE, CURRENT_DATE)
           `,
           [categoryId],
         ),
@@ -273,12 +270,24 @@ if (!config.testDatabaseUrl) {
       await expectPostgresError(
         database.query(
           `
-            INSERT INTO payments (
+            INSERT INTO payment_history (
               subscription_id, amount, currency_code, payment_date, payment_status
             ) VALUES (999999, 1, 'USD', CURRENT_DATE, 'completed')
           `,
         ),
         '23503',
+      );
+      await expectPostgresError(
+        database.query(
+          `
+            INSERT INTO payment_history (
+              subscription_id, amount, currency_code, payment_date, payment_status
+            ) VALUES ($1, 1, 'EUR', CURRENT_DATE, 'completed')
+          `,
+          [subscriptionId],
+        ),
+        '23503',
+        'fk_payment_history_subscription_currency',
       );
       await expectPostgresError(
         database.query(
@@ -299,34 +308,22 @@ if (!config.testDatabaseUrl) {
         ),
         '23503',
       );
-      const recommendation = await database.query(
-        `
-          INSERT INTO recommendations (
-            user_id, recommendation_type, title, explanation, rule_version,
-            priority, confidence, suggested_action, recommendation_key, source_fingerprint
-          ) VALUES (
-            $1, 'price_outlier', 'Test recommendation', 'Test explanation', 'test-v1',
-            'medium', 'high', 'Review this test record.', 'test-ownership', repeat('0', 64)
-          )
-          RETURNING id
-        `,
-        [secondUserId],
-      );
       await expectPostgresError(
         database.query(
           `
-            INSERT INTO recommendation_subscriptions (
-              recommendation_id, subscription_id, user_id
-            ) VALUES ($1, $2, $3)
+            INSERT INTO recommendation (
+              user_id, subscription_id, rule, title, recommendation_text, priority, suggested_action
+            ) VALUES ($1, $2, 'duplicate_category', 'Test', 'Wrong owner', 'medium', 'Review.')
           `,
-          [recommendation.rows[0].id, subscriptionId, secondUserId],
+          [secondUserId, subscriptionId],
         ),
         '23503',
+        'fk_recommendation_owned_subscription',
       );
       await expectPostgresError(
-        database.query(`DELETE FROM users WHERE id = $1`, [firstUserId]),
+        database.query(`DELETE FROM users WHERE user_id = $1`, [firstUserId]),
         ['23001', '23503'],
-        'fk_subscriptions_user',
+        'fk_subscription_user',
       );
     });
 
@@ -334,29 +331,17 @@ if (!config.testDatabaseUrl) {
       const userId = await insertUser(database, 'relationships');
       const secondUserId = await insertUser(database, 'relationships-two');
       const categoryId = await insertCategory(database, 'Relationship Category');
-      const serviceId = await insertService(database, categoryId, 'Shared Relationship Service');
       const firstSubscriptionId = await insertSubscription(database, {
         categoryId,
-        planName: 'First Plan',
-        serviceId,
+        serviceName: 'Shared Relationship Service',
         userId,
       });
-      await insertSubscription(database, {
-        categoryId,
-        planName: 'Second Plan',
-        serviceId,
-        userId,
-      });
-      await insertSubscription(database, {
-        categoryId,
-        planName: 'Other User Plan',
-        serviceId,
-        userId: secondUserId,
-      });
+      await insertSubscription(database, { categoryId, serviceName: 'Second', userId });
+      await insertSubscription(database, { categoryId, serviceName: 'Other', userId: secondUserId });
 
       await database.query(
         `
-          INSERT INTO payments (
+          INSERT INTO payment_history (
             subscription_id, amount, currency_code, payment_date, payment_status
           ) VALUES
             ($1, 10, 'USD', DATE '2026-08-01', 'completed'),
@@ -367,22 +352,21 @@ if (!config.testDatabaseUrl) {
 
       const subscriptions = await database.query(
         `
-          SELECT sub.id, svc.name AS service_name, cat.name AS category_name
-          FROM subscriptions AS sub
-          LEFT JOIN services AS svc ON svc.id = sub.service_id
-          INNER JOIN categories AS cat ON cat.id = sub.category_id
+          SELECT sub.subscription_id, sub.service_name, cat.category_name
+          FROM subscription AS sub
+          INNER JOIN category AS cat ON cat.category_id = sub.category_id
           WHERE sub.user_id = $1
-          ORDER BY sub.id
+          ORDER BY sub.subscription_id
         `,
         [userId],
       );
       const payments = await database.query(
-        `SELECT id FROM payments WHERE subscription_id = $1 ORDER BY payment_date`,
+        `SELECT payment_id FROM payment_history WHERE subscription_id = $1 ORDER BY payment_date`,
         [firstSubscriptionId],
       );
       const activeCount = await database.query(
-        `SELECT count(*)::INTEGER AS count FROM subscriptions WHERE user_id = $1 AND status = $2`,
-        [userId, 'active'],
+        `SELECT count(*)::INTEGER AS count FROM subscription WHERE user_id = $1 AND status = $2`,
+        [userId, 'Active'],
       );
 
       assert.equal(subscriptions.rowCount, 2);
@@ -394,28 +378,28 @@ if (!config.testDatabaseUrl) {
 
     it('commits successful transactions and rolls back failed transactions', async () => {
       await database.withTransaction(async (transaction) => {
-        await transaction.query(`INSERT INTO categories (name, description) VALUES ($1, $2)`, [
-          'Committed Category',
-          'Should persist.',
-        ]);
+        await transaction.query(
+          `INSERT INTO category (category_name, description) VALUES ($1, $2)`,
+          ['Committed Category', 'Should persist.'],
+        );
       });
 
-      const committed = await database.query(`SELECT count(*)::INTEGER AS count FROM categories`);
+      const committed = await database.query(`SELECT count(*)::INTEGER AS count FROM category`);
       assert.equal(committed.rows[0].count, 1);
 
       await assert.rejects(
         database.withTransaction(async (transaction) => {
-          await transaction.query(`INSERT INTO categories (name) VALUES ($1)`, [
+          await transaction.query(`INSERT INTO category (category_name) VALUES ($1)`, [
             'Rolled Back Category',
           ]);
-          await transaction.query(`INSERT INTO categories (name) VALUES ($1)`, [
+          await transaction.query(`INSERT INTO category (category_name) VALUES ($1)`, [
             'Rolled Back Category',
           ]);
         }),
       );
 
       const afterRollback = await database.query(
-        `SELECT count(*)::INTEGER AS count FROM categories WHERE name = $1`,
+        `SELECT count(*)::INTEGER AS count FROM category WHERE category_name = $1`,
         ['Rolled Back Category'],
       );
       assert.equal(afterRollback.rows[0].count, 0);
@@ -424,13 +408,7 @@ if (!config.testDatabaseUrl) {
     it('tracks migrations, skips reruns, and rolls back an invalid migration', async () => {
       const secondRun = await runMigrations({ database });
       assert.deepEqual(secondRun.applied, []);
-      assert.deepEqual(secondRun.skipped, [
-        '001_initial_schema',
-        '002_auth_sessions',
-        '003_notification_target_dates',
-        '004_ai_cost_optimization',
-        '005_advanced_dbms',
-      ]);
+      assert.deepEqual(secondRun.skipped, allMigrations);
 
       const initialTracking = await database.query(
         `SELECT checksum FROM schema_migrations WHERE migration_id = $1`,
@@ -444,26 +422,14 @@ if (!config.testDatabaseUrl) {
       );
 
       try {
-        await copyFile(
-          path.join(defaultMigrationsDirectory, '001_initial_schema.sql'),
-          path.join(temporaryDirectory, '001_initial_schema.sql'),
-        );
-        await copyFile(
-          path.join(defaultMigrationsDirectory, '002_auth_sessions.sql'),
-          path.join(temporaryDirectory, '002_auth_sessions.sql'),
-        );
-        await copyFile(
-          path.join(defaultMigrationsDirectory, '003_notification_target_dates.sql'),
-          path.join(temporaryDirectory, '003_notification_target_dates.sql'),
-        );
-        await copyFile(
-          path.join(defaultMigrationsDirectory, '004_ai_cost_optimization.sql'),
-          path.join(temporaryDirectory, '004_ai_cost_optimization.sql'),
-        );
-        await copyFile(
-          path.join(defaultMigrationsDirectory, '005_advanced_dbms.sql'),
-          path.join(temporaryDirectory, '005_advanced_dbms.sql'),
-        );
+        for (const file of await readdir(defaultMigrationsDirectory)) {
+          if (file.endsWith('.sql')) {
+            await copyFile(
+              path.join(defaultMigrationsDirectory, file),
+              path.join(temporaryDirectory, file),
+            );
+          }
+        }
         await writeFile(
           path.join(temporaryDirectory, '900_valid_probe.sql'),
           'CREATE TABLE stage3_valid_migration_probe (id INTEGER PRIMARY KEY);',
@@ -502,13 +468,15 @@ if (!config.testDatabaseUrl) {
       await seedCatalog(database);
       await seedCatalog(database);
 
-      const categoryCount = await database.query(
-        `SELECT count(*)::INTEGER AS count FROM categories`,
-      );
+      const categoryCount = await database.query(`SELECT count(*)::INTEGER AS count FROM category`);
       const serviceCount = await database.query(`SELECT count(*)::INTEGER AS count FROM services`);
+      const utilities = await database.query(
+        `SELECT 1 FROM category WHERE category_name = 'Utilities'`,
+      );
 
       assert.equal(categoryCount.rows[0].count, categorySeeds.length);
       assert.equal(serviceCount.rows[0].count, serviceSeeds.length);
+      assert.equal(utilities.rowCount, 1);
       assert.throws(
         () =>
           assertDemoSeedAllowed({

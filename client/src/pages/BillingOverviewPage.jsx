@@ -81,11 +81,11 @@ function RenewalPill({ item }) {
           <h3 className="truncate text-base">{item.serviceName}</h3>
           <p className="text-xs text-soft">
             {item.planName ? `${item.planName} · ` : ''}
-            <span className="num">{formatDate(item.nextRenewalDate, 'ddd D MMM YYYY')}</span> ·{' '}
-            <span className="num">{formatCurrency(item.price, item.currencyCode)}</span> /
+            <span className="num">{formatDate(item.renewalDate, 'ddd D MMM YYYY')}</span> ·{' '}
+            <span className="num">{formatCurrency(item.cost, item.currencyCode)}</span> /
             {getBillingCycleLabel(item.billingCycle).toLowerCase()}
           </p>
-          {item.isOverdue && item.overdueNotice && (
+          {item.isOverdue && (
             <p className="mt-1.5 flex items-start gap-1.5 text-xs font-bold">
               <StateDot className="mt-0.5" kind="half" />
               <span>

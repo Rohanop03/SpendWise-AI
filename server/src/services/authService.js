@@ -156,14 +156,14 @@ export function createAuthService({
       };
     },
 
-    async register({ displayName, email, password }) {
+    async register({ email, name, password }) {
       const passwordHash = await passwordManager.hash(password);
       const session = buildSession(null);
 
       try {
         const user = await database.withTransaction((transaction) =>
           repository.createUserWithPreferencesAndSession(transaction, {
-            displayName,
+            name,
             email,
             passwordHash,
             refreshTokenHash: session.refresh.hash,

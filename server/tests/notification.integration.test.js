@@ -12,7 +12,7 @@ import { createNotificationRepository } from '../src/repositories/notificationRe
 import { createReminderService } from '../src/services/reminderService.js';
 import { testAppConfig } from './helpers/testConfig.js';
 
-const expectedTestDatabaseName = 'spendwise_test';
+const expectedTestDatabaseName = 'smart_subscription_test';
 const origin = testAppConfig.corsOrigin;
 const password = 'correct horse battery staple';
 
@@ -21,38 +21,39 @@ async function register(client, suffix) {
     .post('/api/v1/auth/register')
     .set('Origin', origin)
     .set('X-Requested-With', 'XMLHttpRequest')
-    .send({ displayName: `Notify ${suffix}`, email: `notify.${suffix}@example.invalid`, password });
+    .send({ name: `Notify ${suffix}`, email: `notify.${suffix}@example.invalid`, password });
   assert.equal(response.status, 201);
   return response.body;
 }
 
 async function insertSubscription(database, userId, options = {}) {
-  const category = await database.query(`SELECT id FROM categories ORDER BY id LIMIT 1`);
+  const category = await database.query(
+    `SELECT category_id FROM category ORDER BY category_id LIMIT 1`,
+  );
   const result = await database.query(
     `
-      INSERT INTO subscriptions (
-        user_id, custom_service_name, category_id, price, currency_code, billing_cycle,
-        status, start_date, next_renewal_date, trial_end_date, archived_at, cancelled_at
-      ) VALUES ($1, $2, $3, 12.00, 'USD', 'monthly', $4, DATE '2026-01-01', $5, $6, $7, $8)
-      RETURNING id
+      INSERT INTO subscription (
+        user_id, service_name, category_id, cost, currency_code, billing_cycle,
+        status, start_date, renewal_date, archived_at, cancelled_at
+      ) VALUES ($1, $2, $3, 12.00, 'USD', 'Monthly', $4, DATE '2026-01-01', $5, $6, $7)
+      RETURNING subscription_id
     `,
     [
       userId,
       options.name ?? 'Custom Service',
-      category.rows[0].id,
-      options.status ?? 'active',
+      category.rows[0].category_id,
+      options.status ?? 'Active',
       options.renewalDate ?? '2026-11-20',
-      options.trialEndDate ?? null,
       options.archivedAt ?? null,
-      options.status === 'cancelled' ? new Date() : null,
+      options.status === 'Cancelled' ? new Date() : null,
     ],
   );
-  return String(result.rows[0].id);
+  return String(result.rows[0].subscription_id);
 }
 
 if (!config.testDatabaseUrl) {
   test('notification integration tests require TEST_DATABASE_URL', {
-    skip: 'Set TEST_DATABASE_URL to the dedicated spendwise_test database.',
+    skip: 'Set TEST_DATABASE_URL to the dedicated smart_subscription_test database.',
   });
 } else {
   const database = createDatabase({ connectionString: config.testDatabaseUrl });
@@ -72,7 +73,7 @@ if (!config.testDatabaseUrl) {
 
     beforeEach(async () => {
       await database.query(`
-        TRUNCATE TABLE notifications, subscriptions, auth_sessions, user_preferences, users
+        TRUNCATE TABLE notifications, subscription, auth_sessions, user_preferences, users
         RESTART IDENTITY CASCADE
       `);
     });
@@ -90,8 +91,13 @@ if (!config.testDatabaseUrl) {
         name: 'Safe Stream',
       });
       await database.query(
-        `INSERT INTO payments (subscription_id, amount, currency_code, payment_date, payment_status)
+        `INSERT INTO payment_history (subscription_id, amount, currency_code, payment_date, payment_status)
          VALUES ($1, 12, 'USD', DATE '2026-10-20', 'completed')`,
+        [subscriptionId],
+      );
+      // The renewal trigger advanced the date; pin it so the worker's effect can be checked.
+      await database.query(
+        `UPDATE subscription SET renewal_date = DATE '2026-11-20' WHERE subscription_id = $1`,
         [subscriptionId],
       );
 
@@ -115,14 +121,14 @@ if (!config.testDatabaseUrl) {
       assert.equal(stored.rows[0].target_event_date, '2026-11-20');
       assert.match(stored.rows[0].title, /Safe Stream/);
       const unchanged = await database.query(
-        `SELECT next_renewal_date::text, (SELECT count(*)::INTEGER FROM payments) AS payments FROM subscriptions WHERE id = $1`,
+        `SELECT renewal_date::text, (SELECT count(*)::INTEGER FROM payment_history) AS payments FROM subscription WHERE subscription_id = $1`,
         [subscriptionId],
       );
-      assert.equal(unchanged.rows[0].next_renewal_date, '2026-11-20');
+      assert.equal(unchanged.rows[0].renewal_date, '2026-11-20');
       assert.equal(unchanged.rows[0].payments, 1);
     });
 
-    test('supports new target dates and respects disabled, paused, cancelled, and archived states', async () => {
+    test('supports new target dates and respects disabled, cancelled, and archived states', async () => {
       const account = await register(request.agent(app), 'rules');
       const subscriptionId = await insertSubscription(database, account.user.id);
       const repository = createNotificationRepository(database);
@@ -130,7 +136,7 @@ if (!config.testDatabaseUrl) {
         clock: () => new Date('2026-11-17T12:00:00Z'),
       }).runOnce();
       await database.query(
-        `UPDATE subscriptions SET next_renewal_date = DATE '2026-11-25' WHERE id = $1`,
+        `UPDATE subscription SET renewal_date = DATE '2026-11-25' WHERE subscription_id = $1`,
         [subscriptionId],
       );
       const changed = await createReminderService(repository, {
@@ -144,14 +150,9 @@ if (!config.testDatabaseUrl) {
       );
       await insertSubscription(database, account.user.id, { name: 'Disabled' });
       await insertSubscription(database, account.user.id, {
-        name: 'Paused',
-        status: 'paused',
-        renewalDate: null,
-      });
-      await insertSubscription(database, account.user.id, {
         name: 'Cancelled',
-        status: 'cancelled',
-        renewalDate: null,
+        status: 'Cancelled',
+        renewalDate: '2026-11-20',
       });
       await insertSubscription(database, account.user.id, {
         name: 'Archived',
@@ -166,36 +167,40 @@ if (!config.testDatabaseUrl) {
       assert.equal(count.rows[0].count, 2);
     });
 
-    test('creates trial reminders and excludes overdue events across user-local dates', async () => {
+    test('uses each user’s local date for the reminder window', async () => {
       const india = await register(request.agent(app), 'india');
       const york = await register(request.agent(app), 'york');
       await database.query(
-        `UPDATE user_preferences SET timezone = 'Asia/Kolkata', trial_reminder_days = 0 WHERE user_id = $1`,
+        `UPDATE user_preferences SET timezone = 'Asia/Kolkata', renewal_reminder_days = 0 WHERE user_id = $1`,
         [india.user.id],
       );
       await database.query(
-        `UPDATE user_preferences SET timezone = 'America/New_York', trial_reminder_days = 0 WHERE user_id = $1`,
+        `UPDATE user_preferences SET timezone = 'America/New_York', renewal_reminder_days = 0 WHERE user_id = $1`,
         [york.user.id],
       );
-      await insertSubscription(database, india.user.id, {
-        name: 'India Trial',
-        status: 'trial',
-        renewalDate: '2026-12-01',
-        trialEndDate: '2026-11-17',
-      });
-      await insertSubscription(database, york.user.id, {
-        name: 'York Trial',
-        status: 'trial',
-        renewalDate: '2026-12-01',
-        trialEndDate: '2026-11-17',
-      });
+      await insertSubscription(database, india.user.id, { name: 'India Plan', renewalDate: '2026-11-17' });
+      await insertSubscription(database, york.user.id, { name: 'York Plan', renewalDate: '2026-11-17' });
+      // 02:00 UTC is 17 Nov in Kolkata but still 16 Nov in New York.
       const summary = await createReminderService(createNotificationRepository(database), {
         clock: () => new Date('2026-11-17T02:00:00Z'),
       }).runOnce();
       assert.equal(summary.created, 1);
       const rows = await database.query(`SELECT user_id, notification_type FROM notifications`);
       assert.equal(String(rows.rows[0].user_id), india.user.id);
-      assert.equal(rows.rows[0].notification_type, 'trial_expiration');
+      assert.equal(rows.rows[0].notification_type, 'renewal');
+    });
+
+    test('keyset pagination visits every candidate exactly once', async () => {
+      const account = await register(request.agent(app), 'pages');
+      for (let index = 0; index < 5; index += 1) {
+        await insertSubscription(database, account.user.id, { name: `Paged ${index}` });
+      }
+      const summary = await createReminderService(createNotificationRepository(database), {
+        batchSize: 2,
+        clock: () => new Date('2026-11-17T12:00:00Z'),
+      }).runOnce();
+      assert.equal(summary.examined, 5);
+      assert.equal(summary.created, 5);
     });
 
     test('provides protected, paginated, ownership-scoped read APIs', async () => {

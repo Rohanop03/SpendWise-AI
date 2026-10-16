@@ -57,9 +57,7 @@ async function demonstrateRepeatableRead(userId) {
     ]);
     const second = await client.query('SELECT name FROM users WHERE user_id = $1', [userId]);
     await client.query('COMMIT');
-    const afterCommit = await database.query('SELECT name FROM users WHERE user_id = $1', [
-      userId,
-    ]);
+    const afterCommit = await database.query('SELECT name FROM users WHERE user_id = $1', [userId]);
     return {
       afterCommit: afterCommit.rows[0].name,
       first: first.rows[0].name,
@@ -86,9 +84,10 @@ async function runPairedTransactions(userIds, { isolationLevel, deadlock = false
             firstId,
           ]);
         } else {
-          await client.query('SELECT user_id FROM users WHERE user_id = ANY($1::int[]) ORDER BY user_id', [
-            userIds,
-          ]);
+          await client.query(
+            'SELECT user_id FROM users WHERE user_id = ANY($1::int[]) ORDER BY user_id',
+            [userIds],
+          );
         }
         arrivals += 1;
         if (arrivals === 2) release();

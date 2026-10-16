@@ -56,7 +56,9 @@ if (!config.testDatabaseUrl) {
       await runMigrations({ database });
       await seedCatalog(database);
 
-      const catResult = await database.query('SELECT category_id AS id, category_name AS name FROM category ORDER BY category_name ASC');
+      const catResult = await database.query(
+        'SELECT category_id AS id, category_name AS name FROM category ORDER BY category_name ASC',
+      );
       categoriesList = catResult.rows;
     });
 

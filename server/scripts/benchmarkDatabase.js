@@ -96,7 +96,9 @@ try {
   );
   const subscriptionIds = subscriptions.rows.map((row) => row.subscription_id);
   // Bulk fixture rows are not real payments: keep the renewal trigger out of the way.
-  await database.query('ALTER TABLE payment_history DISABLE TRIGGER trg_payment_history_update_renewal');
+  await database.query(
+    'ALTER TABLE payment_history DISABLE TRIGGER trg_payment_history_update_renewal',
+  );
   await database.query(
     `
       INSERT INTO payment_history (
@@ -149,7 +151,9 @@ try {
 } finally {
   try {
     await database.query(createIndexSql);
-    await database.query('ALTER TABLE payment_history ENABLE TRIGGER trg_payment_history_update_renewal');
+    await database.query(
+      'ALTER TABLE payment_history ENABLE TRIGGER trg_payment_history_update_renewal',
+    );
     if (userId) {
       await database.query(`DELETE FROM subscription_audit_events WHERE user_id = $1`, [userId]);
       await database.query(`DELETE FROM subscription WHERE user_id = $1`, [userId]);

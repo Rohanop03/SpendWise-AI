@@ -337,7 +337,11 @@ if (!config.testDatabaseUrl) {
         userId,
       });
       await insertSubscription(database, { categoryId, serviceName: 'Second', userId });
-      await insertSubscription(database, { categoryId, serviceName: 'Other', userId: secondUserId });
+      await insertSubscription(database, {
+        categoryId,
+        serviceName: 'Other',
+        userId: secondUserId,
+      });
 
       await database.query(
         `

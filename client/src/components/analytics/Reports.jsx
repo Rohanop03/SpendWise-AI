@@ -537,10 +537,7 @@ export function BillingCycleDistribution({ billingCycles }) {
               <div className="flex justify-between gap-2">
                 <dt className="text-(--graphite)">Subscriptions:</dt>
                 <dd className="font-bold">
-                  {cycle.subscriptionCount}{' '}
-                  <span className="font-normal text-(--graphite)">
-                    
-                  </span>
+                  {cycle.subscriptionCount} <span className="font-normal text-(--graphite)"></span>
                 </dd>
               </div>
               <div className="flex justify-between gap-2">

@@ -178,8 +178,14 @@ if (!config.testDatabaseUrl) {
         `UPDATE user_preferences SET timezone = 'America/New_York', renewal_reminder_days = 0 WHERE user_id = $1`,
         [york.user.id],
       );
-      await insertSubscription(database, india.user.id, { name: 'India Plan', renewalDate: '2026-11-17' });
-      await insertSubscription(database, york.user.id, { name: 'York Plan', renewalDate: '2026-11-17' });
+      await insertSubscription(database, india.user.id, {
+        name: 'India Plan',
+        renewalDate: '2026-11-17',
+      });
+      await insertSubscription(database, york.user.id, {
+        name: 'York Plan',
+        renewalDate: '2026-11-17',
+      });
       // 02:00 UTC is 17 Nov in Kolkata but still 16 Nov in New York.
       const summary = await createReminderService(createNotificationRepository(database), {
         clock: () => new Date('2026-11-17T02:00:00Z'),

@@ -121,7 +121,10 @@ export default function SubscriptionDetailsPage() {
       const result = await cancelSubscription(
         subscription.id,
         finalPayment.includePayment
-          ? { amount: Number(finalPayment.amount).toFixed(2), paymentDate: finalPayment.paymentDate }
+          ? {
+              amount: Number(finalPayment.amount).toFixed(2),
+              paymentDate: finalPayment.paymentDate,
+            }
           : undefined,
       );
       setSubscription(result.subscription);
@@ -411,9 +414,13 @@ export default function SubscriptionDetailsPage() {
                   {event.changedFields.map((field) => (
                     <p className="text-sm" key={field}>
                       <span className="font-bold">{fieldLabels[field] || field}:</span>{' '}
-                      <span className="num">{String(event.oldValues[valueKeys[field]] ?? '—')}</span>
+                      <span className="num">
+                        {String(event.oldValues[valueKeys[field]] ?? '—')}
+                      </span>
                       {' → '}
-                      <span className="num">{String(event.newValues[valueKeys[field]] ?? '—')}</span>
+                      <span className="num">
+                        {String(event.newValues[valueKeys[field]] ?? '—')}
+                      </span>
                     </p>
                   ))}
                 </li>
@@ -491,7 +498,11 @@ export default function SubscriptionDetailsPage() {
           </label>
           {finalPayment.includePayment && (
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field error={finalPaymentErrors.amount} id="finalAmount" label={`Amount (${subscription.currencyCode})`}>
+              <Field
+                error={finalPaymentErrors.amount}
+                id="finalAmount"
+                label={`Amount (${subscription.currencyCode})`}
+              >
                 {(fieldId, describedBy, invalid) => (
                   <Input
                     aria-describedby={describedBy}

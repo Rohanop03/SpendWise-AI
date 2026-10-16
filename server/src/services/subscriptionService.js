@@ -152,12 +152,19 @@ export function createSubscriptionService(
       if (!existing) throw notFound();
 
       if (existing.archivedAt) {
-        throw new AppError(400, 'Cannot update an archived subscription. Please restore it first.', {
-          code: 'SUBSCRIPTION_ARCHIVED',
-        });
+        throw new AppError(
+          400,
+          'Cannot update an archived subscription. Please restore it first.',
+          {
+            code: 'SUBSCRIPTION_ARCHIVED',
+          },
+        );
       }
 
-      if (updates.categoryId && !(await subscriptionRepository.categoryExists(updates.categoryId))) {
+      if (
+        updates.categoryId &&
+        !(await subscriptionRepository.categoryExists(updates.categoryId))
+      ) {
         throw new AppError(400, 'Selected category does not exist.', { code: 'INVALID_CATEGORY' });
       }
 

@@ -90,8 +90,20 @@ if (!config.testDatabaseUrl) {
     test('preserves dismissal, updates facts, and removes stale Pending recommendations', async () => {
       const client = request.agent(app);
       const account = await register(client, 'lifecycle');
-      const firstId = await insertSubscription(database, account.user.id, 'Lifecycle A', '10.00', 'XAB');
-      const secondId = await insertSubscription(database, account.user.id, 'Lifecycle B', '6.00', 'XAB');
+      const firstId = await insertSubscription(
+        database,
+        account.user.id,
+        'Lifecycle A',
+        '10.00',
+        'XAB',
+      );
+      const secondId = await insertSubscription(
+        database,
+        account.user.id,
+        'Lifecycle B',
+        '6.00',
+        'XAB',
+      );
       const auth = { Authorization: `Bearer ${account.accessToken}` };
       await client.post('/api/v1/recommendations/generate').set(auth);
       const list = await client.get('/api/v1/recommendations?rule=duplicate_category').set(auth);
@@ -99,7 +111,10 @@ if (!config.testDatabaseUrl) {
       assert.equal(recommendation.subscriptionId, secondId);
       assert.equal(recommendation.potentialSavings, '6.00');
       assert.equal(recommendation.status, 'Pending');
-      assert.match(recommendation.recommendationText, /cancelling Lifecycle B would save XAB 6\.00\/month/);
+      assert.match(
+        recommendation.recommendationText,
+        /cancelling Lifecycle B would save XAB 6\.00\/month/,
+      );
 
       const dismissed = await client
         .patch(`/api/v1/recommendations/${recommendation.id}`)
@@ -108,7 +123,9 @@ if (!config.testDatabaseUrl) {
       assert.equal(dismissed.status, 200);
       assert.equal(dismissed.body.recommendation.status, 'Dismissed');
 
-      await database.query('UPDATE subscription SET cost = 4.00 WHERE subscription_id = $1', [secondId]);
+      await database.query('UPDATE subscription SET cost = 4.00 WHERE subscription_id = $1', [
+        secondId,
+      ]);
       await client.post('/api/v1/recommendations/generate').set(auth);
       const afterUpdate = await client
         .get('/api/v1/recommendations?status=Dismissed&rule=duplicate_category')
@@ -116,7 +133,10 @@ if (!config.testDatabaseUrl) {
       assert.equal(afterUpdate.body.recommendations[0].potentialSavings, '4.00');
 
       // Back to Pending, then make it stale: the Pending row disappears.
-      await client.patch(`/api/v1/recommendations/${recommendation.id}`).set(auth).send({ status: 'Pending' });
+      await client
+        .patch(`/api/v1/recommendations/${recommendation.id}`)
+        .set(auth)
+        .send({ status: 'Pending' });
       await database.query(
         "UPDATE subscription SET status = 'Cancelled', cancelled_at = CURRENT_TIMESTAMP WHERE subscription_id = $1",
         [firstId],

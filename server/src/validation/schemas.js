@@ -110,18 +110,16 @@ const currencyCode = z
   .trim()
   .regex(/^[A-Z]{3}$/, 'Currency code must be a 3-letter ISO code.');
 const serviceName = z.string().trim().min(1).max(100);
-const cost = z
-  .union([z.number(), z.string()])
-  .pipe(
-    z.coerce
-      .number()
-      .positive('Cost must be greater than 0.')
-      .max(999999.99, 'Cost must be below 1,000,000.')
-      .refine(
-        (value) => Math.abs(Math.round(value * 100) - value * 100) < 1e-6,
-        'Cost cannot have more than 2 decimal places.',
-      ),
-  );
+const cost = z.union([z.number(), z.string()]).pipe(
+  z.coerce
+    .number()
+    .positive('Cost must be greater than 0.')
+    .max(999999.99, 'Cost must be below 1,000,000.')
+    .refine(
+      (value) => Math.abs(Math.round(value * 100) - value * 100) < 1e-6,
+      'Cost cannot have more than 2 decimal places.',
+    ),
+);
 
 export const createSubscriptionSchema = z
   .object({
@@ -464,13 +462,7 @@ export const analyticsSubscriptionsQuerySchema = z
     limit: z.coerce.number().int().min(1).max(100).default(20),
     offset: z.coerce.number().int().min(0).default(0),
     sortBy: z
-      .enum([
-        'grossPayments',
-        'netCashFlow',
-        'completedPaymentCount',
-        'serviceName',
-        'currentCost',
-      ])
+      .enum(['grossPayments', 'netCashFlow', 'completedPaymentCount', 'serviceName', 'currentCost'])
       .default('grossPayments'),
     sortOrder: z
       .enum(['asc', 'desc', 'ASC', 'DESC'])

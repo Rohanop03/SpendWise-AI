@@ -56,7 +56,9 @@ if (!config.testDatabaseUrl) {
       await runMigrations({ database });
       await seedCatalog(database);
 
-      const catResult = await database.query('SELECT category_id AS id, category_name AS name FROM category ORDER BY category_name ASC');
+      const catResult = await database.query(
+        'SELECT category_id AS id, category_name AS name FROM category ORDER BY category_name ASC',
+      );
       categoriesList = catResult.rows;
     });
 
@@ -480,8 +482,7 @@ if (!config.testDatabaseUrl) {
 
     test('calculates recurring monthly costs with currency separation and tracks upcoming renewals', async () => {
       const client = request(app);
-      const day = (offset) =>
-        new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+      const day = (offset) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
 
       // Monthly INR 600, renewing in 20 days
       await createTestSubscription(userOne, {
@@ -545,7 +546,9 @@ if (!config.testDatabaseUrl) {
       assert.equal(overview.stats.upcomingCount, 2);
 
       // No payments are invented for the overdue subscription
-      const paymentsCheck = await database.query('SELECT COUNT(*)::int AS count FROM payment_history');
+      const paymentsCheck = await database.query(
+        'SELECT COUNT(*)::int AS count FROM payment_history',
+      );
       assert.equal(paymentsCheck.rows[0].count, 0);
 
       const upcomingRes = await client

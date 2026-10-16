@@ -163,10 +163,10 @@ export default function SubscriptionsPage() {
 
   const isFiltered = Boolean(
     filters.search ||
-      filters.status ||
-      filters.categoryId ||
-      filters.billingCycle ||
-      filters.unusedDays,
+    filters.status ||
+    filters.categoryId ||
+    filters.billingCycle ||
+    filters.unusedDays,
   );
 
   // Estimated monthly cost of the visible Active plans, kept per currency (never mixed).

@@ -15,12 +15,54 @@ const demoUsers = [
     email: 'aarav.demo@example.invalid',
     name: 'Aarav Demo',
     subscriptions: [
-      { category: 'Entertainment', cost: '649.00', cycle: 'Monthly', lastUsedDaysAgo: 3, months: 6, name: 'Netflix' },
-      { category: 'Entertainment', cost: '299.00', cycle: 'Monthly', lastUsedDaysAgo: 20, months: 4, name: 'Prime Video' },
-      { category: 'Fitness', cost: '1499.00', cycle: 'Monthly', lastUsedDaysAgo: 74, months: 5, name: 'City Gym' },
-      { category: 'Utilities', cost: '999.00', cycle: 'Monthly', lastUsedDaysAgo: 0, months: 8, name: 'Home Broadband' },
-      { category: 'Productivity', cost: '6199.00', cycle: 'Yearly', lastUsedDaysAgo: 1, months: 12, name: 'Microsoft 365' },
-      { category: 'Cloud Storage', cost: '130.00', cycle: 'Monthly', lastUsedDaysAgo: null, months: 3, name: 'Google One' },
+      {
+        category: 'Entertainment',
+        cost: '649.00',
+        cycle: 'Monthly',
+        lastUsedDaysAgo: 3,
+        months: 6,
+        name: 'Netflix',
+      },
+      {
+        category: 'Entertainment',
+        cost: '299.00',
+        cycle: 'Monthly',
+        lastUsedDaysAgo: 20,
+        months: 4,
+        name: 'Prime Video',
+      },
+      {
+        category: 'Fitness',
+        cost: '1499.00',
+        cycle: 'Monthly',
+        lastUsedDaysAgo: 74,
+        months: 5,
+        name: 'City Gym',
+      },
+      {
+        category: 'Utilities',
+        cost: '999.00',
+        cycle: 'Monthly',
+        lastUsedDaysAgo: 0,
+        months: 8,
+        name: 'Home Broadband',
+      },
+      {
+        category: 'Productivity',
+        cost: '6199.00',
+        cycle: 'Yearly',
+        lastUsedDaysAgo: 1,
+        months: 12,
+        name: 'Microsoft 365',
+      },
+      {
+        category: 'Cloud Storage',
+        cost: '130.00',
+        cycle: 'Monthly',
+        lastUsedDaysAgo: null,
+        months: 3,
+        name: 'Google One',
+      },
     ],
   },
   {
@@ -28,10 +70,38 @@ const demoUsers = [
     email: 'maya.demo@example.invalid',
     name: 'Maya Demo',
     subscriptions: [
-      { category: 'Productivity', cost: '10.00', cycle: 'Monthly', lastUsedDaysAgo: 2, months: 6, name: 'Notion' },
-      { category: 'Productivity', cost: '8.75', cycle: 'Monthly', lastUsedDaysAgo: 9, months: 3, name: 'Slack Pro' },
-      { category: 'Education', cost: '199.00', cycle: 'Yearly', lastUsedDaysAgo: 95, months: 12, name: 'Course Platform' },
-      { category: 'Entertainment', cost: '11.99', cycle: 'Monthly', lastUsedDaysAgo: 1, months: 9, name: 'Spotify' },
+      {
+        category: 'Productivity',
+        cost: '10.00',
+        cycle: 'Monthly',
+        lastUsedDaysAgo: 2,
+        months: 6,
+        name: 'Notion',
+      },
+      {
+        category: 'Productivity',
+        cost: '8.75',
+        cycle: 'Monthly',
+        lastUsedDaysAgo: 9,
+        months: 3,
+        name: 'Slack Pro',
+      },
+      {
+        category: 'Education',
+        cost: '199.00',
+        cycle: 'Yearly',
+        lastUsedDaysAgo: 95,
+        months: 12,
+        name: 'Course Platform',
+      },
+      {
+        category: 'Entertainment',
+        cost: '11.99',
+        cycle: 'Monthly',
+        lastUsedDaysAgo: 1,
+        months: 9,
+        name: 'Spotify',
+      },
     ],
   },
 ];
@@ -103,7 +173,9 @@ async function seedSubscription(transaction, userId, currency, subscription) {
   );
 
   if (created.rowCount !== 1) {
-    throw new Error(`Required category not found: ${subscription.category}. Run the catalog seed first.`);
+    throw new Error(
+      `Required category not found: ${subscription.category}. Run the catalog seed first.`,
+    );
   }
 
   const subscriptionId = created.rows[0].subscription_id;

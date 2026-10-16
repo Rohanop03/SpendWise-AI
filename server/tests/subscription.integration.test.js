@@ -145,7 +145,14 @@ if (!config.testDatabaseUrl) {
       const yearly = await client
         .post('/api/v1/subscriptions')
         .set('Authorization', `Bearer ${accessToken}`)
-        .send(subscriptionBody({ billingCycle: 'Yearly', cost: 150, renewalDate: '2027-10-15', serviceName: 'Campus Gym' }));
+        .send(
+          subscriptionBody({
+            billingCycle: 'Yearly',
+            cost: 150,
+            renewalDate: '2027-10-15',
+            serviceName: 'Campus Gym',
+          }),
+        );
       assert.equal(yearly.status, 201);
       assert.equal(yearly.body.subscription.monthlyEquivalent, 12.5);
     });
@@ -154,7 +161,10 @@ if (!config.testDatabaseUrl) {
       const client = request.agent(app);
       const { accessToken } = await registerUser(client, 'bob');
       const post = (body) =>
-        client.post('/api/v1/subscriptions').set('Authorization', `Bearer ${accessToken}`).send(body);
+        client
+          .post('/api/v1/subscriptions')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send(body);
 
       for (const body of [
         subscriptionBody({ cost: 0 }),
@@ -185,8 +195,21 @@ if (!config.testDatabaseUrl) {
 
       for (const body of [
         subscriptionBody({ cost: 14.99, planName: 'Family', serviceName: 'Alpha Music' }),
-        subscriptionBody({ billingCycle: 'Yearly', cost: 120, planName: 'Pro', renewalDate: '2027-01-15', serviceName: 'Beta Video', startDate: '2026-01-15' }),
-        subscriptionBody({ categoryId: category('Productivity'), cost: 8, planName: 'Team', renewalDate: '2026-11-20', serviceName: 'Gamma Notes' }),
+        subscriptionBody({
+          billingCycle: 'Yearly',
+          cost: 120,
+          planName: 'Pro',
+          renewalDate: '2027-01-15',
+          serviceName: 'Beta Video',
+          startDate: '2026-01-15',
+        }),
+        subscriptionBody({
+          categoryId: category('Productivity'),
+          cost: 8,
+          planName: 'Team',
+          renewalDate: '2026-11-20',
+          serviceName: 'Gamma Notes',
+        }),
       ]) {
         assert.equal((await client.post('/api/v1/subscriptions').set(auth).send(body)).status, 201);
       }
@@ -196,13 +219,24 @@ if (!config.testDatabaseUrl) {
       assert.equal(listRes.body.pagination.totalCount, 3);
 
       const yearlyRes = await client.get('/api/v1/subscriptions?billingCycle=Yearly').set(auth);
-      assert.deepEqual(yearlyRes.body.items.map((item) => item.serviceName), ['Beta Video']);
+      assert.deepEqual(
+        yearlyRes.body.items.map((item) => item.serviceName),
+        ['Beta Video'],
+      );
 
-      const prodRes = await client.get(`/api/v1/subscriptions?categoryId=${category('Productivity')}`).set(auth);
-      assert.deepEqual(prodRes.body.items.map((item) => item.serviceName), ['Gamma Notes']);
+      const prodRes = await client
+        .get(`/api/v1/subscriptions?categoryId=${category('Productivity')}`)
+        .set(auth);
+      assert.deepEqual(
+        prodRes.body.items.map((item) => item.serviceName),
+        ['Gamma Notes'],
+      );
 
       const searchRes = await client.get('/api/v1/subscriptions?search=family').set(auth);
-      assert.deepEqual(searchRes.body.items.map((item) => item.serviceName), ['Alpha Music']);
+      assert.deepEqual(
+        searchRes.body.items.map((item) => item.serviceName),
+        ['Alpha Music'],
+      );
 
       const sortRes = await client.get('/api/v1/subscriptions?sortBy=cost&sortOrder=asc').set(auth);
       assert.equal(sortRes.body.items[0].cost, 8);
@@ -220,49 +254,74 @@ if (!config.testDatabaseUrl) {
       const { accessToken } = await registerUser(client, 'dana');
       const auth = { Authorization: `Bearer ${accessToken}` };
 
-      const createRes = await client.post('/api/v1/subscriptions').set(auth).send(subscriptionBody({ serviceName: 'Initial' }));
+      const createRes = await client
+        .post('/api/v1/subscriptions')
+        .set(auth)
+        .send(subscriptionBody({ serviceName: 'Initial' }));
       const subId = createRes.body.subscription.id;
 
-      const patch1 = await client.patch(`/api/v1/subscriptions/${subId}`).set(auth).send({ cost: 12.5, notes: 'Updated note', serviceName: 'Renamed' });
+      const patch1 = await client
+        .patch(`/api/v1/subscriptions/${subId}`)
+        .set(auth)
+        .send({ cost: 12.5, notes: 'Updated note', serviceName: 'Renamed' });
       assert.equal(patch1.status, 200);
       assert.equal(patch1.body.subscription.cost, 12.5);
       assert.equal(patch1.body.subscription.serviceName, 'Renamed');
 
-      const cancelled = await client.patch(`/api/v1/subscriptions/${subId}`).set(auth).send({ status: 'Cancelled' });
+      const cancelled = await client
+        .patch(`/api/v1/subscriptions/${subId}`)
+        .set(auth)
+        .send({ status: 'Cancelled' });
       assert.equal(cancelled.body.subscription.status, 'Cancelled');
       assert.ok(cancelled.body.subscription.cancelledAt);
       assert.equal(cancelled.body.subscription.renewalDate, '2026-11-01');
 
-      const reactivated = await client.patch(`/api/v1/subscriptions/${subId}`).set(auth).send({ renewalDate: '2026-12-01', status: 'Active' });
+      const reactivated = await client
+        .patch(`/api/v1/subscriptions/${subId}`)
+        .set(auth)
+        .send({ renewalDate: '2026-12-01', status: 'Active' });
       assert.equal(reactivated.body.subscription.status, 'Active');
       assert.equal(reactivated.body.subscription.cancelledAt, null);
 
       const history = await client.get(`/api/v1/subscriptions/${subId}/history`).set(auth);
       assert.equal(history.status, 200);
-      assert.deepEqual(history.body.items.map((item) => item.changedFields), [
-        ['status', 'renewal_date'],
-        ['status'],
-        ['cost'],
-      ]);
+      assert.deepEqual(
+        history.body.items.map((item) => item.changedFields),
+        [['status', 'renewal_date'], ['status'], ['cost']],
+      );
     });
 
     test('cancels with a final payment in one transaction', async () => {
       const client = request.agent(app);
       const { accessToken } = await registerUser(client, 'frank');
       const auth = { Authorization: `Bearer ${accessToken}` };
-      const subId = (await client.post('/api/v1/subscriptions').set(auth).send(subscriptionBody())).body.subscription.id;
+      const subId = (await client.post('/api/v1/subscriptions').set(auth).send(subscriptionBody()))
+        .body.subscription.id;
 
-      const failed = await csrfPost(client, `/api/v1/subscriptions/${subId}/cancel`).set(auth).send({ finalPayment: { amount: 0, paymentDate: '2026-10-20' } });
+      const failed = await csrfPost(client, `/api/v1/subscriptions/${subId}/cancel`)
+        .set(auth)
+        .send({ finalPayment: { amount: 0, paymentDate: '2026-10-20' } });
       assert.equal(failed.status, 400);
-      assert.equal((await client.get(`/api/v1/subscriptions/${subId}`).set(auth)).body.subscription.status, 'Active');
+      assert.equal(
+        (await client.get(`/api/v1/subscriptions/${subId}`).set(auth)).body.subscription.status,
+        'Active',
+      );
 
-      const ok = await csrfPost(client, `/api/v1/subscriptions/${subId}/cancel`).set(auth).send({ finalPayment: { amount: '10.00', paymentDate: '2026-10-20' } });
+      const ok = await csrfPost(client, `/api/v1/subscriptions/${subId}/cancel`)
+        .set(auth)
+        .send({ finalPayment: { amount: '10.00', paymentDate: '2026-10-20' } });
       assert.equal(ok.status, 200);
       assert.equal(ok.body.subscription.status, 'Cancelled');
-      assert.equal(ok.body.subscription.renewalDate, '2026-11-01', 'trigger skips the cancelled row');
+      assert.equal(
+        ok.body.subscription.renewalDate,
+        '2026-11-01',
+        'trigger skips the cancelled row',
+      );
       assert.equal(ok.body.payment.amount, '10.00');
 
-      const again = await csrfPost(client, `/api/v1/subscriptions/${subId}/cancel`).set(auth).send({});
+      const again = await csrfPost(client, `/api/v1/subscriptions/${subId}/cancel`)
+        .set(auth)
+        .send({});
       assert.equal(again.status, 409);
     });
 
@@ -270,17 +329,31 @@ if (!config.testDatabaseUrl) {
       const client = request.agent(app);
       const { accessToken } = await registerUser(client, 'gina');
       const auth = { Authorization: `Bearer ${accessToken}` };
-      const subId = (await client.post('/api/v1/subscriptions').set(auth).send(subscriptionBody({ startDate: '2025-01-01' }))).body.subscription.id;
+      const subId = (
+        await client
+          .post('/api/v1/subscriptions')
+          .set(auth)
+          .send(subscriptionBody({ startDate: '2025-01-01' }))
+      ).body.subscription.id;
 
       const used = await client.patch(`/api/v1/subscriptions/${subId}/used`).set(auth).send({});
       assert.equal(used.status, 200);
       assert.equal(used.body.subscription.lastUsedDate, new Date().toISOString().slice(0, 10));
 
-      await client.patch(`/api/v1/subscriptions/${subId}`).set(auth).send({ lastUsedDate: '2025-02-01' });
+      await client
+        .patch(`/api/v1/subscriptions/${subId}`)
+        .set(auth)
+        .send({ lastUsedDate: '2025-02-01' });
       const unused = await client.get('/api/v1/subscriptions?unusedDays=60').set(auth);
-      assert.deepEqual(unused.body.items.map((item) => item.id), [subId]);
+      assert.deepEqual(
+        unused.body.items.map((item) => item.id),
+        [subId],
+      );
 
-      const future = await client.patch(`/api/v1/subscriptions/${subId}/used`).set(auth).send({ lastUsedDate: '2999-01-01' });
+      const future = await client
+        .patch(`/api/v1/subscriptions/${subId}/used`)
+        .set(auth)
+        .send({ lastUsedDate: '2999-01-01' });
       assert.equal(future.status, 400);
     });
 
@@ -289,26 +362,42 @@ if (!config.testDatabaseUrl) {
       const { accessToken } = await registerUser(client, 'eva');
       const auth = { Authorization: `Bearer ${accessToken}` };
 
-      const subId = (await client.post('/api/v1/subscriptions').set(auth).send(subscriptionBody({ serviceName: 'Old Membership' }))).body.subscription.id;
+      const subId = (
+        await client
+          .post('/api/v1/subscriptions')
+          .set(auth)
+          .send(subscriptionBody({ serviceName: 'Old Membership' }))
+      ).body.subscription.id;
 
       const archiveRes = await csrfPost(client, `/api/v1/subscriptions/${subId}/archive`).set(auth);
       assert.equal(archiveRes.status, 200);
       assert.ok(archiveRes.body.subscription.archivedAt);
       assert.equal((await client.get('/api/v1/subscriptions').set(auth)).body.items.length, 0);
-      assert.equal((await client.get('/api/v1/subscriptions?archived=true').set(auth)).body.items.length, 1);
+      assert.equal(
+        (await client.get('/api/v1/subscriptions?archived=true').set(auth)).body.items.length,
+        1,
+      );
 
-      const editArchived = await client.patch(`/api/v1/subscriptions/${subId}`).set(auth).send({ cost: 30 });
+      const editArchived = await client
+        .patch(`/api/v1/subscriptions/${subId}`)
+        .set(auth)
+        .send({ cost: 30 });
       assert.equal(editArchived.status, 400);
       assert.equal(editArchived.body.code, 'SUBSCRIPTION_ARCHIVED');
 
       const restoreRes = await csrfPost(client, `/api/v1/subscriptions/${subId}/restore`).set(auth);
       assert.equal(restoreRes.body.subscription.archivedAt, null);
 
-      await csrfPost(client, `/api/v1/subscriptions/${subId}/payments`).set(auth).send({ amount: '25.00', paymentDate: '2026-10-05' });
+      await csrfPost(client, `/api/v1/subscriptions/${subId}/payments`)
+        .set(auth)
+        .send({ amount: '25.00', paymentDate: '2026-10-05' });
       const deleted = await client.delete(`/api/v1/subscriptions/${subId}`).set(auth);
       assert.equal(deleted.status, 204);
       assert.equal((await client.get(`/api/v1/subscriptions/${subId}`).set(auth)).status, 404);
-      const leftovers = await database.query('SELECT count(*)::int AS count FROM payment_history WHERE subscription_id = $1', [subId]);
+      const leftovers = await database.query(
+        'SELECT count(*)::int AS count FROM payment_history WHERE subscription_id = $1',
+        [subId],
+      );
       assert.equal(leftovers.rows[0].count, 0);
     });
 
@@ -316,7 +405,9 @@ if (!config.testDatabaseUrl) {
       const client = request.agent(app);
       const { accessToken } = await registerUser(client, 'hal');
       for (const id of ['abc', '0', '2147483648', '99999999999999999999', '1%20OR%201%3D1']) {
-        const response = await client.get(`/api/v1/subscriptions/${id}`).set('Authorization', `Bearer ${accessToken}`);
+        const response = await client
+          .get(`/api/v1/subscriptions/${id}`)
+          .set('Authorization', `Bearer ${accessToken}`);
         assert.equal(response.status, 400, id);
         assert.equal(response.body.code, 'INVALID_ID');
       }
@@ -328,16 +419,39 @@ if (!config.testDatabaseUrl) {
       const userB = await registerUser(client, 'userB');
       const asB = { Authorization: `Bearer ${userB.accessToken}` };
 
-      const subId = (await client.post('/api/v1/subscriptions').set('Authorization', `Bearer ${userA.accessToken}`).send(subscriptionBody({ cost: 50, serviceName: "User A's Secret Service" }))).body.subscription.id;
+      const subId = (
+        await client
+          .post('/api/v1/subscriptions')
+          .set('Authorization', `Bearer ${userA.accessToken}`)
+          .send(subscriptionBody({ cost: 50, serviceName: "User A's Secret Service" }))
+      ).body.subscription.id;
 
       assert.equal((await client.get(`/api/v1/subscriptions/${subId}`).set(asB)).status, 404);
-      assert.equal((await client.patch(`/api/v1/subscriptions/${subId}`).set(asB).send({ cost: 1 })).status, 404);
+      assert.equal(
+        (await client.patch(`/api/v1/subscriptions/${subId}`).set(asB).send({ cost: 1 })).status,
+        404,
+      );
       assert.equal((await client.delete(`/api/v1/subscriptions/${subId}`).set(asB)).status, 404);
-      assert.equal((await csrfPost(client, `/api/v1/subscriptions/${subId}/archive`).set(asB)).status, 404);
-      assert.equal((await csrfPost(client, `/api/v1/subscriptions/${subId}/restore`).set(asB)).status, 404);
-      assert.equal((await csrfPost(client, `/api/v1/subscriptions/${subId}/cancel`).set(asB).send({})).status, 404);
-      assert.equal((await client.patch(`/api/v1/subscriptions/${subId}/used`).set(asB).send({})).status, 404);
-      assert.equal((await client.get(`/api/v1/subscriptions/${subId}/history`).set(asB)).status, 404);
+      assert.equal(
+        (await csrfPost(client, `/api/v1/subscriptions/${subId}/archive`).set(asB)).status,
+        404,
+      );
+      assert.equal(
+        (await csrfPost(client, `/api/v1/subscriptions/${subId}/restore`).set(asB)).status,
+        404,
+      );
+      assert.equal(
+        (await csrfPost(client, `/api/v1/subscriptions/${subId}/cancel`).set(asB).send({})).status,
+        404,
+      );
+      assert.equal(
+        (await client.patch(`/api/v1/subscriptions/${subId}/used`).set(asB).send({})).status,
+        404,
+      );
+      assert.equal(
+        (await client.get(`/api/v1/subscriptions/${subId}/history`).set(asB)).status,
+        404,
+      );
 
       const listRes = await client.get('/api/v1/subscriptions').set(asB);
       assert.equal(listRes.body.items.length, 0);

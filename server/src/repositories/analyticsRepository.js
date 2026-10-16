@@ -10,9 +10,10 @@ export function createAnalyticsRepository(database) {
   return {
     async getFinancialOverview({ client = database, currencyCode, endDate, startDate, userId }) {
       const filters = [userId, startDate || null, endDate || null, currencyCode || null];
-      const [completedResult, otherStatusResult, refundsResult, recurringResult] = await Promise.all([
-        client.query(
-          `
+      const [completedResult, otherStatusResult, refundsResult, recurringResult] =
+        await Promise.all([
+          client.query(
+            `
             SELECT currency_code,
                    SUM(total_amount) AS gross_payments,
                    SUM(payment_count)::int AS completed_payment_count
@@ -23,10 +24,10 @@ export function createAnalyticsRepository(database) {
               AND ($4::varchar IS NULL OR currency_code = $4)
             GROUP BY currency_code
           `,
-          filters,
-        ),
-        client.query(
-          `
+            filters,
+          ),
+          client.query(
+            `
             SELECT
               p.currency_code,
               COUNT(*) FILTER (WHERE p.payment_status = 'pending')::int AS pending_payment_count,
@@ -42,10 +43,10 @@ export function createAnalyticsRepository(database) {
               AND ($4::varchar IS NULL OR p.currency_code = $4)
             GROUP BY p.currency_code
           `,
-          filters,
-        ),
-        client.query(
-          `
+            filters,
+          ),
+          client.query(
+            `
             SELECT p.currency_code, COALESCE(SUM(r.amount), 0) AS completed_refunds,
                    COUNT(r.id)::int AS refund_count
             FROM refunds r
@@ -59,10 +60,10 @@ export function createAnalyticsRepository(database) {
               AND ($4::varchar IS NULL OR p.currency_code = $4)
             GROUP BY p.currency_code
           `,
-          filters,
-        ),
-        client.query(
-          `
+            filters,
+          ),
+          client.query(
+            `
             SELECT currency_code,
                    COUNT(*)::int AS active_subscription_count,
                    SUM(monthly_equivalent) AS estimated_monthly_recurring,
@@ -71,9 +72,9 @@ export function createAnalyticsRepository(database) {
             WHERE user_id = $1 AND ($2::varchar IS NULL OR currency_code = $2)
             GROUP BY currency_code
           `,
-          [userId, currencyCode || null],
-        ),
-      ]);
+            [userId, currencyCode || null],
+          ),
+        ]);
 
       const payments = new Map();
       for (const row of completedResult.rows) payments.set(row.currency_code, { ...row });

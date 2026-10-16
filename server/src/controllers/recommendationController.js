@@ -6,7 +6,9 @@ export function createRecommendationController(service) {
     generate: async (request, response) =>
       response.status(200).json(await service.generate(request.user.id)),
     get: async (request, response) =>
-      response.status(200).json({ recommendation: await service.get(request.user.id, id(request)) }),
+      response
+        .status(200)
+        .json({ recommendation: await service.get(request.user.id, id(request)) }),
     list: async (request, response) =>
       response.status(200).json(await service.list(request.user.id, request.validatedQuery)),
     summary: async (request, response) =>

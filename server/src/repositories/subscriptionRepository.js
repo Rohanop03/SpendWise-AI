@@ -17,7 +17,8 @@ export function mapSubscription(row) {
     daysSinceLastUse: row.days_since_last_use ?? null,
     id: String(row.subscription_id),
     lastUsedDate: row.last_used_date ?? null,
-    monthlyEquivalent: row.monthly_equivalent === undefined ? undefined : Number(row.monthly_equivalent),
+    monthlyEquivalent:
+      row.monthly_equivalent === undefined ? undefined : Number(row.monthly_equivalent),
     notes: row.notes ?? null,
     planName: row.plan_name ?? null,
     renewalDate: row.renewal_date,
@@ -203,7 +204,10 @@ export function createSubscriptionRepository(database) {
           `,
           queryParams,
         ),
-        database.query(`SELECT COUNT(*)::int AS total FROM subscription AS s ${whereClause}`, params),
+        database.query(
+          `SELECT COUNT(*)::int AS total FROM subscription AS s ${whereClause}`,
+          params,
+        ),
       ]);
 
       const totalCount = countResult.rows[0]?.total ?? 0;

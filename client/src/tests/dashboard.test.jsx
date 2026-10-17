@@ -7,17 +7,7 @@ import App from '../App.jsx';
 import { AuthProvider } from '../auth/AuthContext.jsx';
 
 const mocks = vi.hoisted(() => ({
-  getAnalyticsOverview: vi.fn(),
-  getBillingCycleAnalytics: vi.fn(),
-  getCategoryAnalytics: vi.fn(),
-  getPaymentStatusAnalytics: vi.fn(),
-  getPreferences: vi.fn(),
-  getRecommendationSummary: vi.fn(),
-  getRecommendations: vi.fn(),
-  getRefundAnalytics: vi.fn(),
-  getSpendingTrends: vi.fn(),
-  getTopSubscriptions: vi.fn(),
-  getUpcomingRenewals: vi.fn(),
+  getDashboard: vi.fn(),
   getUnreadNotificationCount: vi.fn(),
   restoreSession: vi.fn(),
 }));
@@ -42,28 +32,14 @@ vi.mock('recharts', async () => {
 });
 
 vi.mock('../api/auth.js', () => ({ restoreSession: mocks.restoreSession }));
-vi.mock('../api/account.js', () => ({ getPreferences: mocks.getPreferences }));
-vi.mock('../api/analytics.js', () => ({
-  getAnalyticsOverview: mocks.getAnalyticsOverview,
-  getBillingCycleAnalytics: mocks.getBillingCycleAnalytics,
-  getCategoryAnalytics: mocks.getCategoryAnalytics,
-  getPaymentStatusAnalytics: mocks.getPaymentStatusAnalytics,
-  getRefundAnalytics: mocks.getRefundAnalytics,
-  getSpendingTrends: mocks.getSpendingTrends,
-  getTopSubscriptions: mocks.getTopSubscriptions,
-}));
-vi.mock('../api/billing.js', () => ({ getUpcomingRenewals: mocks.getUpcomingRenewals }));
+vi.mock('../api/dashboard.js', () => ({ getDashboard: mocks.getDashboard }));
 vi.mock('../api/notifications.js', () => ({
   getUnreadNotificationCount: mocks.getUnreadNotificationCount,
-}));
-vi.mock('../api/recommendations.js', () => ({
-  getRecommendationSummary: mocks.getRecommendationSummary,
-  getRecommendations: mocks.getRecommendations,
 }));
 
 const userFixture = {
   accountStatus: 'active',
-  displayName: 'Dashboard Tester',
+  name: 'Dashboard Tester',
   email: 'dashboard@example.invalid',
   id: '1',
 };
@@ -89,91 +65,100 @@ const usdSummary = {
   netCashFlow: '15.00',
 };
 
-function resolveDashboardFixtures() {
-  mocks.getPreferences.mockResolvedValue({ preferences: { preferredCurrency: 'INR' } });
-  mocks.getAnalyticsOverview.mockResolvedValue({ currencySummaries: [inrSummary, usdSummary] });
-  mocks.getSpendingTrends.mockResolvedValue({
-    trends: [
-      {
-        completedPaymentCount: 1,
-        completedRefunds: '1750.00',
-        currencyCode: 'INR',
-        grossPayments: '1500.00',
-        netCashFlow: '-250.00',
-        period: '2026-09',
-        refundCount: 1,
-      },
-    ],
-  });
-  mocks.getCategoryAnalytics.mockResolvedValue({
-    categories: [
-      {
-        categoryId: '1',
-        categoryName: 'Entertainment',
-        completedRefunds: '1750.00',
-        currencyCode: 'INR',
-        grossPayments: '1500.00',
-        netCashFlow: '-250.00',
-        percentageOfGross: 100,
-      },
-    ],
-  });
-  mocks.getTopSubscriptions.mockResolvedValue({
-    subscriptions: [
-      {
-        currencyCode: 'INR',
-        grossPayments: '1500.00',
-        serviceName: 'Netflix Premium Family Plan',
-        subscriptionId: '10',
-      },
-    ],
-  });
-  mocks.getBillingCycleAnalytics.mockResolvedValue({
-    billingCycles: [
-      {
-        billingCycle: 'monthly',
-        currencyCode: 'INR',
-        estimatedMonthlyTotal: '649.00',
-        subscriptionCount: 2,
-      },
-    ],
-  });
-  mocks.getPaymentStatusAnalytics.mockResolvedValue({
-    statuses: [
-      {
-        completed: { amount: '1500.00', count: 3 },
-        currencyCode: 'INR',
-        failed: { amount: '200.00', count: 1 },
-        pending: { amount: '300.00', count: 2 },
-      },
-    ],
-  });
-  mocks.getRefundAnalytics.mockResolvedValue({
-    summaries: [
-      {
-        currencyCode: 'INR',
-        fullyRefundedCount: 1,
-        partiallyRefundedCount: 1,
-        refundedPaymentCount: 2,
-        totalRefundAmount: '1750.00',
-      },
-    ],
-  });
-  mocks.getUpcomingRenewals.mockResolvedValue({
-    items: [
-      {
-        billingCycle: 'monthly',
-        currencyCode: 'INR',
-        daysUntilRenewal: 5,
-        isOverdue: false,
-        nextRenewalDate: '2026-10-20',
-        price: '649.00',
-        serviceName: 'Netflix Premium Family Plan',
-        status: 'active',
-        subscriptionId: '10',
-      },
-    ],
-  });
+// One GET /dashboard response: every widget keeps its standalone endpoint's shape.
+function dashboardFixture(overrides = {}) {
+  return {
+    billingCycles: {
+      billingCycles: [
+        {
+          billingCycle: 'Monthly',
+          currencyCode: 'INR',
+          estimatedMonthlyTotal: '649.00',
+          subscriptionCount: 2,
+        },
+      ],
+    },
+    categories: {
+      categories: [
+        {
+          categoryId: '1',
+          categoryName: 'Entertainment',
+          completedRefunds: '1750.00',
+          currencyCode: 'INR',
+          grossPayments: '1500.00',
+          netCashFlow: '-250.00',
+          percentageOfGross: 100,
+        },
+      ],
+    },
+    overview: { currencySummaries: [inrSummary, usdSummary] },
+    paymentStatus: {
+      statuses: [
+        {
+          completed: { amount: '1500.00', count: 3 },
+          currencyCode: 'INR',
+          failed: { amount: '200.00', count: 1 },
+          pending: { amount: '300.00', count: 2 },
+        },
+      ],
+    },
+    preferences: { preferredCurrency: 'INR', renewalReminderDays: 7 },
+    recommendations: {
+      previews: [],
+      summary: { highPriorityCount: 0, pendingCount: 0, potentialMonthlySavings: [] },
+    },
+    refunds: {
+      summaries: [
+        {
+          currencyCode: 'INR',
+          fullyRefundedCount: 1,
+          partiallyRefundedCount: 1,
+          refundedPaymentCount: 2,
+          totalRefundAmount: '1750.00',
+        },
+      ],
+    },
+    renewals: {
+      items: [
+        {
+          billingCycle: 'Monthly',
+          cost: '649.00',
+          currencyCode: 'INR',
+          daysUntilRenewal: 5,
+          isOverdue: false,
+          renewalDate: '2026-10-20',
+          serviceName: 'Netflix Premium Family Plan',
+          status: 'Active',
+          subscriptionId: '10',
+        },
+      ],
+      overdue: [],
+    },
+    topSubscriptions: {
+      subscriptions: [
+        {
+          currencyCode: 'INR',
+          grossPayments: '1500.00',
+          serviceName: 'Netflix Premium Family Plan',
+          subscriptionId: '10',
+        },
+      ],
+    },
+    trends: {
+      trends: [
+        {
+          completedPaymentCount: 1,
+          completedRefunds: '1750.00',
+          currencyCode: 'INR',
+          grossPayments: '1500.00',
+          netCashFlow: '-250.00',
+          period: '2026-09',
+          refundCount: 1,
+        },
+      ],
+    },
+    ...overrides,
+  };
 }
 
 function renderDashboard(route = '/dashboard?currency=INR&period=all_time') {
@@ -191,13 +176,7 @@ describe('Stage 8 dashboard', () => {
     vi.clearAllMocks();
     mocks.restoreSession.mockResolvedValue({ accessToken: 'access-token', user: userFixture });
     mocks.getUnreadNotificationCount.mockResolvedValue(0);
-    mocks.getRecommendationSummary.mockResolvedValue({
-      activeCount: 0,
-      highPriorityCount: 0,
-      hypotheticalMonthlySavings: [],
-    });
-    mocks.getRecommendations.mockResolvedValue({ recommendations: [] });
-    resolveDashboardFixtures();
+    mocks.getDashboard.mockResolvedValue(dashboardFixture());
   });
 
   it('protects the dashboard route', async () => {
@@ -238,7 +217,7 @@ describe('Stage 8 dashboard', () => {
     await screen.findByRole('option', { name: 'USD' });
     await user.selectOptions(currency, 'USD');
     await waitFor(() =>
-      expect(mocks.getSpendingTrends).toHaveBeenLastCalledWith(
+      expect(mocks.getDashboard).toHaveBeenLastCalledWith(
         expect.objectContaining({ currencyCode: 'USD' }),
         expect.any(Object),
       ),
@@ -250,7 +229,7 @@ describe('Stage 8 dashboard', () => {
     renderDashboard();
     await user.click(await screen.findByRole('button', { name: 'This Month' }));
     await waitFor(() =>
-      expect(mocks.getCategoryAnalytics).toHaveBeenLastCalledWith(
+      expect(mocks.getDashboard).toHaveBeenLastCalledWith(
         expect.objectContaining({ endDate: expect.any(String), startDate: expect.any(String) }),
         expect.any(Object),
       ),
@@ -258,14 +237,18 @@ describe('Stage 8 dashboard', () => {
   });
 
   it('shows a truthful empty state for a new user', async () => {
-    mocks.getAnalyticsOverview.mockResolvedValue({ currencySummaries: [] });
-    mocks.getSpendingTrends.mockResolvedValue({ trends: [] });
-    mocks.getCategoryAnalytics.mockResolvedValue({ categories: [] });
-    mocks.getTopSubscriptions.mockResolvedValue({ subscriptions: [] });
-    mocks.getBillingCycleAnalytics.mockResolvedValue({ billingCycles: [] });
-    mocks.getPaymentStatusAnalytics.mockResolvedValue({ statuses: [] });
-    mocks.getRefundAnalytics.mockResolvedValue({ summaries: [] });
-    mocks.getUpcomingRenewals.mockResolvedValue({ items: [] });
+    mocks.getDashboard.mockResolvedValue(
+      dashboardFixture({
+        billingCycles: { billingCycles: [] },
+        categories: { categories: [] },
+        overview: { currencySummaries: [] },
+        paymentStatus: { statuses: [] },
+        refunds: { summaries: [] },
+        renewals: { items: [], overdue: [] },
+        topSubscriptions: { subscriptions: [] },
+        trends: { trends: [] },
+      }),
+    );
     renderDashboard();
     expect(
       await screen.findByRole('heading', { name: 'Build your subscription picture' }),
@@ -275,17 +258,23 @@ describe('Stage 8 dashboard', () => {
 
   it('shows loading state while dashboard requests are pending', async () => {
     const pending = new Promise(() => {});
-    mocks.getAnalyticsOverview.mockReturnValue(pending);
+    mocks.getDashboard.mockReturnValue(pending);
     renderDashboard();
     expect(await screen.findByText('Loading financial overview')).toBeInTheDocument();
   });
 
-  it('keeps successful widgets visible after a partial API failure', async () => {
-    mocks.getSpendingTrends.mockRejectedValue(new Error('Trend service unavailable'));
+  it('loads the whole dashboard in one request', async () => {
     renderDashboard();
     expect((await screen.findAllByText('₹1,500.00')).length).toBeGreaterThan(0);
-    expect(await screen.findByText(/1 dashboard section could not be loaded/i)).toBeInTheDocument();
-    expect(screen.getByText('This dashboard section could not be loaded.')).toBeInTheDocument();
+    expect(mocks.getDashboard).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the section error and a retry when the dashboard request fails', async () => {
+    mocks.getDashboard.mockRejectedValueOnce(new Error('Service unavailable'));
+    renderDashboard();
+    expect(
+      (await screen.findAllByText('This dashboard section could not be loaded.')).length,
+    ).toBeGreaterThan(0);
   });
 
   it('includes responsive navigation without page-level horizontal overflow', async () => {

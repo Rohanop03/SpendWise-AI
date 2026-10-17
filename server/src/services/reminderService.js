@@ -5,7 +5,11 @@ function createReminder(candidate, now) {
   // "Today" is the user's local date (same definition as GET /billing/upcoming).
   const localDate = getUserToday(candidate.timezone, now);
   if (
-    !isReminderEligible({ leadDays: candidate.renewalReminderDays, localDate, targetDate: targetEventDate })
+    !isReminderEligible({
+      leadDays: candidate.renewalReminderDays,
+      localDate,
+      targetDate: targetEventDate,
+    })
   ) {
     return null;
   }

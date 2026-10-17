@@ -43,7 +43,7 @@ vi.mock('../api/analytics.js', () => ({
 const userFixture = {
   accountStatus: 'active',
   createdAt: '2026-10-15T00:00:00.000Z',
-  displayName: 'Analytics Tester',
+  name: 'Analytics Tester',
   email: 'analytics@example.invalid',
   id: '1',
   updatedAt: '2026-10-15T00:00:00.000Z',
@@ -127,7 +127,7 @@ const subscriptionsFixture = {
   subscriptions: [
     {
       archivedAt: null,
-      billingCycle: 'monthly',
+      billingCycle: 'Monthly',
       categoryId: '1',
       categoryName: 'Entertainment',
       completedPaymentCount: 2,
@@ -139,12 +139,12 @@ const subscriptionsFixture = {
       netCashFlow: '850.00',
       refundCount: 1,
       serviceName: 'Netflix',
-      status: 'active',
+      status: 'Active',
       subscriptionId: '10',
     },
     {
       archivedAt: null,
-      billingCycle: 'monthly',
+      billingCycle: 'Monthly',
       categoryId: '2',
       categoryName: 'Productivity',
       completedPaymentCount: 1,
@@ -156,7 +156,7 @@ const subscriptionsFixture = {
       netCashFlow: '500.00',
       refundCount: 0,
       serviceName: 'Notion',
-      status: 'active',
+      status: 'Active',
       subscriptionId: '11',
     },
   ],
@@ -166,13 +166,13 @@ const topRecurringFixture = {
   limit: 5,
   subscriptions: [
     {
-      billingCycle: 'monthly',
+      billingCycle: 'Monthly',
       categoryName: 'Entertainment',
       currencyCode: 'INR',
       currentPrice: '649.00',
       normalizedMonthlyCost: '649.00',
       serviceName: 'Netflix',
-      status: 'active',
+      status: 'Active',
       subscriptionId: '10',
     },
   ],
@@ -183,14 +183,14 @@ const topHistoricalFixture = {
   limit: 5,
   subscriptions: [
     {
-      billingCycle: 'monthly',
+      billingCycle: 'Monthly',
       categoryName: 'Entertainment',
       completedPaymentCount: 2,
       currencyCode: 'INR',
       currentPrice: '649.00',
       grossPayments: '1000.00',
       serviceName: 'Netflix',
-      status: 'active',
+      status: 'Active',
       subscriptionId: '10',
     },
   ],
@@ -200,13 +200,11 @@ const topHistoricalFixture = {
 const billingCyclesFixture = {
   billingCycles: [
     {
-      activeCount: 2,
-      billingCycle: 'monthly',
+      billingCycle: 'Monthly',
       currencyCode: 'INR',
       estimatedMonthlyTotal: '1000.00',
       estimatedYearlyTotal: '12000.00',
       subscriptionCount: 2,
-      trialCount: 0,
     },
   ],
 };
@@ -357,7 +355,6 @@ describe('frontend spending analytics and reporting', () => {
     });
 
     expect(screen.getByText('Monthly')).toBeInTheDocument();
-    expect(screen.getByText(/2 active, 0 trial/i)).toBeInTheDocument();
   });
 
   it('filters by date preset and triggers export CSV', async () => {

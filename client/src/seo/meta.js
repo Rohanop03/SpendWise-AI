@@ -23,6 +23,11 @@ export const publicPages = {
       'Track every subscription, see renewals before they charge, record payments and refunds, and get explainable rule-based savings suggestions. Free and private.',
     title: null,
   },
+  '/how-it-works': {
+    description:
+      'See how SpendWise AI works: add subscriptions, record payments, get reminders and clear savings suggestions, plus what happens behind the scenes, in plain words.',
+    title: 'How it works',
+  },
   '/login': {
     description:
       'Log in to SpendWise AI to review upcoming renewals, recurring spend, payment history and explainable cost-saving recommendations for your subscriptions.',

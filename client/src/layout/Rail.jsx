@@ -33,10 +33,10 @@ export default function Rail({ onLogout, user }) {
         <ul className="grid gap-2">
           {navItems.map((item) => (
             <li key={item.to}>
-              <NavLink className="group block rounded-2xl" to={item.to}>
+              <NavLink aria-label={item.label} className="group block rounded-2xl" to={item.to}>
                 {({ isActive }) => (
                   <motion.span
-                    className={`relative flex min-h-11 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-[0.68rem] font-bold leading-none transition-colors xl:flex-row xl:justify-start xl:gap-3 xl:px-3.5 xl:text-[0.88rem] ${
+                    className={`relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-[0.68rem] font-bold leading-tight transition-colors xl:flex-row xl:justify-start xl:gap-3 xl:px-3.5 xl:text-[0.88rem] ${
                       isActive
                         ? 'pill-ink text-(--paper)'
                         : 'text-(--graphite) group-hover:bg-white/50 group-hover:text-(--ink)'
@@ -45,7 +45,13 @@ export default function Rail({ onLogout, user }) {
                     whileTap={{ scale: 0.96 }}
                   >
                     <Icon className="size-5 shrink-0" name={item.icon} />
-                    <span className="max-w-full truncate">{item.label}</span>
+                    {/* Compact rail (md–lg) uses the short label so nothing is clipped. */}
+                    <span aria-hidden="true" className="max-w-full truncate xl:hidden">
+                      {item.short ?? item.label}
+                    </span>
+                    <span aria-hidden="true" className="hidden max-w-full truncate xl:inline">
+                      {item.label}
+                    </span>
                   </motion.span>
                 )}
               </NavLink>
@@ -64,16 +70,22 @@ export default function Rail({ onLogout, user }) {
           </span>
           <span className="hidden min-w-0 flex-1 xl:block">
             <span className="block truncate text-sm font-bold">{user?.name}</span>
-            <span className="block truncate text-xs text-(--graphite)">{user?.email}</span>
+            <span className="block truncate text-xs text-(--graphite)" title={user?.email}>
+              {user?.email}
+            </span>
           </span>
         </div>
         <button
+          aria-label="Logout"
           className="pill pill-outline pill-sm mt-3 w-full !px-2"
           onClick={onLogout}
+          title="Logout"
           type="button"
         >
           <Icon className="size-4 shrink-0" name="logout" />
-          <span>Logout</span>
+          <span aria-hidden="true" className="hidden xl:inline">
+            Logout
+          </span>
         </button>
       </div>
     </aside>

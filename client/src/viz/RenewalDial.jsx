@@ -142,7 +142,7 @@ export default function RenewalDial({ items, reminderDays = 7, windowDays = 30 }
               />
               {tick.label && (
                 <text
-                  className="fill-(--graphite) font-mono text-[9px]"
+                  className="fill-(--graphite) font-sans text-[9px] font-bold"
                   dominantBaseline="middle"
                   textAnchor="middle"
                   x={tick.lx}

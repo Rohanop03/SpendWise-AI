@@ -113,7 +113,8 @@ export default function CashFlowChart({ currency, rows, withTable = true }) {
           <ComposedChart
             accessibilityLayer={false}
             data={data}
-            margin={{ bottom: 0, left: 0, right: 8, top: 8 }}
+            // Room on the right so the last period label is not clipped.
+            margin={{ bottom: 0, left: 0, right: 24, top: 8 }}
           >
             <defs>
               <linearGradient id={`gross-fill-${currency}`} x1="0" x2="0" y1="0" y2="1">

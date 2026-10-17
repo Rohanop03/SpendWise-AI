@@ -5,6 +5,7 @@ import ProtectedRoute from '../auth/ProtectedRoute.jsx';
 import PublicOnlyRoute from '../auth/PublicOnlyRoute.jsx';
 import AppLayout from '../layouts/AppLayout.jsx';
 import HomePage from '../pages/HomePage.jsx';
+import HowItWorksPage from '../pages/HowItWorksPage.jsx';
 import LoginPage from '../pages/LoginPage.jsx';
 import NotFoundPage from '../pages/NotFoundPage.jsx';
 import RegisterPage from '../pages/RegisterPage.jsx';
@@ -67,6 +68,7 @@ function AppRoutes() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route index element={<HomePage />} />
+        <Route element={<HowItWorksPage />} path="how-it-works" />
         <Route element={<PublicOnlyRoute />}>
           <Route element={<LoginPage />} path="login" />
           <Route element={<RegisterPage />} path="register" />

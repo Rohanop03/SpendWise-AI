@@ -82,7 +82,7 @@ function RecommendationCard({ explanation, item, onExplain, onStatus }) {
         <div className="mt-5 flex flex-wrap gap-2">
           {item.subscription && (
             <Link
-              className="pill pill-on-ink pill-sm"
+              className="pill pill-on-ink pill-sm h-auto max-w-full py-1.5 !leading-snug !whitespace-normal text-left"
               to={`/subscriptions/${item.subscription.id}`}
             >
               {item.subscription.serviceName} ·{' '}

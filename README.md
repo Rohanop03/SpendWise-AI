@@ -29,7 +29,7 @@ All 12 development stages are fully implemented, verified, and documented:
 | :--- | :--- |
 | **Frontend** | React 19, Vite 8, Tailwind CSS 4, React Router 7, Axios, Radix UI, Framer Motion, React Hook Form + Zod, TanStack Table, Recharts + D3, Day.js, Lenis, GSAP, Vitest, Testing Library |
 | **Backend** | Node.js 22 LTS, Express 5, Zod validation, bcrypt, jsonwebtoken, pg connection pool |
-| **Database** | PostgreSQL 18.6 / 16.x, raw parameterized SQL, migrations 001–005, stored functions & procedures, audit triggers, security-invoker views, covering partial index |
+| **Database** | PostgreSQL 18.6 / 16.x, raw parameterized SQL, migrations 001–009, ENUM value sets, renewal and audit triggers, `renewal_reminders` and `monthly_spend_by_category` views, `generate_recommendations` stored procedure, partial and covering indexes |
 | **Security** | Defensive HTTP headers (HSTS, CSP, X-Frame-Options, nosniff), HttpOnly refresh cookies, CSRF defenses, rate limiting, SQL parameterization, CSV sanitization |
 | **DevOps & QA**| Playwright Test, GitHub Actions CI, Docker, Docker Compose, Render Blueprint, Vercel, Prettier, ESLint |
 
@@ -63,13 +63,29 @@ SpendWise-AI/
 - Node.js `22.19.0` from `.nvmrc`, or a compatible maintained release satisfying `>=22.13.0`
 - npm `10` or newer
 - Git
-- PostgreSQL 14 or newer for database migrations, seeds, and integration tests
+- Docker Desktop (recommended) or PostgreSQL 16+ for migrations, seeds, and integration tests
 
-The basic frontend and `/api/v1/health` can run without PostgreSQL. Database commands and live database health require it. See the [PostgreSQL Setup Guide](docs/DATABASE_SETUP.md) for Windows installation, dedicated role/database creation, and verification.
+The basic frontend and `/api/v1/health` can run without PostgreSQL. Database commands and live database health require it.
 
 ## Installation
 
-From the repository root in PowerShell:
+### 1. PostgreSQL in Docker (PowerShell)
+
+```powershell
+docker info                                   # Docker Desktop must be running
+$pw = [guid]::NewGuid().ToString('N')         # a strong local password; keep it for step 2
+docker volume create ssm_pgdata
+docker run -d --name ssm-postgres --restart unless-stopped `
+  -e POSTGRES_USER=ssm -e POSTGRES_PASSWORD=$pw -e POSTGRES_DB=smart_subscription `
+  -p 5434:5432 -v ssm_pgdata:/var/lib/postgresql postgres:18
+docker exec ssm-postgres pg_isready -U ssm -d smart_subscription
+docker exec ssm-postgres psql -U ssm -d smart_subscription -c "CREATE DATABASE smart_subscription_test;"
+```
+
+Port 5434 avoids clashing with a locally installed PostgreSQL on 5432. After the first run,
+`docker start ssm-postgres` brings the database back (it also restarts with Docker Desktop).
+
+### 2. Configuration
 
 ```powershell
 npm install
@@ -77,16 +93,35 @@ Copy-Item client\.env.example client\.env
 Copy-Item server\.env.example server\.env
 ```
 
-Configure private `DATABASE_URL` and `TEST_DATABASE_URL` values in `server/.env`; never commit that file. Then initialize development data:
+In `server/.env`, replace `YOUR_PASSWORD` in `DATABASE_URL` and `TEST_DATABASE_URL` with the
+password from step 1 and set `JWT_ACCESS_SECRET` to at least 32 random characters. Never commit
+`.env` files (they are git-ignored). Leave `VITE_API_BASE_URL=/api/v1` in `client/.env`: in
+development Vite proxies `/api` to the backend, so there are no CORS preflights.
+
+### 3. Database and app
 
 ```powershell
-npm run db:check
-npm run db:migrate
-npm run db:seed
-npm run dev
+npm run db:migrate                 # applies migrations 001-009 (safe to re-run)
+npm run db:seed                    # categories and the service catalog
+npm run db:seed:demo               # optional fictional demo data (needs ALLOW_DEMO_SEED=true)
+npm run dev                        # backend :5000 + frontend :5173
 ```
 
 Open the frontend at `http://localhost:5173` and backend health at `http://localhost:5000/api/v1/health`.
+
+### 4. Tests
+
+```powershell
+npm run format:check; npm run lint
+npm run test:unit --workspace server
+npm run test:db --workspace server   # rebuilds smart_subscription_test from migration 001
+npm test --workspace client
+npm run test:journeys                # 21 end-to-end API workflows on the test database
+npm run build
+```
+
+These are the same steps CI runs (`.github/workflows/ci.yml`, PostgreSQL 16). The spec-to-schema
+map is in [server/db/SPEC_MAPPING.md](server/db/SPEC_MAPPING.md).
 
 ## Development Commands
 
@@ -99,12 +134,12 @@ Open the frontend at `http://localhost:5173` and backend health at `http://local
 | `npm run db:migrate` | Apply pending transactional SQL migrations |
 | `npm run db:seed` | Idempotently seed shared catalogs |
 | `npm run db:seed:demo` | Seed guarded fictional development fixtures |
-| `npm run db:advanced:verify` | Verify Stage 11 objects in `spendwise_test` |
+| `npm run db:advanced:verify` | Verify the spec database objects in `smart_subscription_test` |
 | `npm run db:benchmark` | Benchmark the covering index with self-cleaning test fixtures |
 | `npm run db:demo` | Demonstrate ACID, isolation, serialization, and deadlocks safely |
 | `npm run reminders:run-once` | Run one safe reminder eligibility scan |
 | `npm run reminders:worker` | Start the independent recurring reminder worker |
-| `npm run test:db` | Rebuild and test only the configured `spendwise_test` database |
+| `npm run test:db` | Rebuild and test only the configured `smart_subscription_test` database |
 | `npm run lint` | Lint both workspaces |
 | `npm run test` | Run all server tests; DB integration skips without `TEST_DATABASE_URL` |
 | `npm run format` | Format implementation, configuration, and documentation |
@@ -117,7 +152,7 @@ Open the frontend at `http://localhost:5173` and backend health at `http://local
 | `npm run test:e2e` | All Playwright specs in `e2e/` against the running app |
 | `npm run lhci` | Lighthouse CI on the production build (see "Frontend quality checks") |
 
-`test:db` is destructive only to `spendwise_test.public` and refuses any other database name.
+`test:db` is destructive only to `smart_subscription_test.public` and refuses any other database name.
 
 ## API Endpoints
 
@@ -133,7 +168,7 @@ All APIs use the `/api/v1` prefix.
 | `POST` | `/api/v1/auth/logout` | Revoke current refresh session & clear cookie | Cookie | Yes |
 | `GET` | `/api/v1/auth/me` | Fetch currently authenticated user identity | Bearer JWT | Yes |
 | `POST` | `/api/v1/auth/change-password` | Change password and revoke all active sessions | Bearer JWT | Yes |
-| `PATCH` | `/api/v1/users/me` | Update display name for authenticated user | Bearer JWT | Yes |
+| `PATCH` | `/api/v1/users/me` | Update the user's name | Bearer JWT | Yes |
 | `GET` | `/api/v1/users/me/preferences` | Retrieve user settings & reminder preferences | Bearer JWT | Yes |
 | `PATCH` | `/api/v1/users/me/preferences` | Update currency, timezone, or reminder settings | Bearer JWT | Yes |
 | `GET` | `/api/v1/categories` | List active subscription categories | Bearer JWT | Yes |
@@ -142,24 +177,29 @@ All APIs use the `/api/v1` prefix.
 | `POST` | `/api/v1/subscriptions` | Create a new subscription record | Bearer JWT | Yes |
 | `GET` | `/api/v1/subscriptions/:id` | Get single subscription details | Bearer JWT | Yes |
 | `PATCH` | `/api/v1/subscriptions/:id` | Partial update of subscription terms/status | Bearer JWT | Yes |
-| `DELETE` | `/api/v1/subscriptions/:id` | Soft-archive an owned subscription | Bearer JWT | Yes |
+| `DELETE` | `/api/v1/subscriptions/:id` | Delete a subscription (payments, refunds, reminders and history cascade) | Bearer JWT | Yes |
+| `POST` | `/api/v1/subscriptions/:id/cancel` | Cancel, optionally recording a final payment, in one transaction | Bearer JWT | Yes |
+| `PATCH` | `/api/v1/subscriptions/:id/used` | Record use today (user's time zone) or on a given date | Bearer JWT | Yes |
+| `GET` | `/api/v1/subscriptions/:id/history` | Change history written by the audit trigger | Bearer JWT | Yes |
+| `POST` | `/api/v1/subscriptions/:id/archive` | Soft-archive a subscription | Bearer JWT | Yes |
 | `POST` | `/api/v1/subscriptions/:id/restore` | Restore a soft-archived subscription | Bearer JWT | Yes |
 | `GET` | `/api/v1/subscriptions/:id/payments` | List payments for a specific subscription | Bearer JWT | Yes |
-| `POST` | `/api/v1/subscriptions/:id/payments` | Record a manual payment for a subscription | Bearer JWT | Yes |
+| `POST` | `/api/v1/subscriptions/:id/payments` | Record a payment; returns the subscription with its trigger-advanced renewal date | Bearer JWT | Yes |
 | `GET` | `/api/v1/payments` | List, filter, and sort all historical payments | Bearer JWT | Yes |
 | `GET` | `/api/v1/payments/:id` | Fetch payment details with refund breakdown | Bearer JWT | Yes |
 | `PATCH` | `/api/v1/payments/:id` | Correct a recorded payment under integrity guards | Bearer JWT | Yes |
 | `GET` | `/api/v1/payments/:id/refunds` | List all refunds for a payment | Bearer JWT | Yes |
 | `POST` | `/api/v1/payments/:id/refunds` | Record a partial or full refund with row-level lock | Bearer JWT | Yes |
 | `GET` | `/api/v1/billing/overview` | Normalized recurring costs grouped by currency | Bearer JWT | Yes |
-| `GET` | `/api/v1/billing/upcoming` | Upcoming renewals and unconfirmed overdue alerts | Bearer JWT | Yes |
+| `GET` | `/api/v1/billing/upcoming` | Renewals within N days (`renewal_reminders_within`) plus overdue ones, separately | Bearer JWT | Yes |
+| `GET` | `/api/v1/dashboard` | Every dashboard widget, recommendation previews and preferences in one request | Bearer JWT | Yes |
 | `GET` | `/api/v1/notifications` | List owned notifications with pagination and filters | Bearer JWT | Yes |
 | `GET` | `/api/v1/notifications/unread-count` | Count owned unread notifications | Bearer JWT | Yes |
 | `PATCH` | `/api/v1/notifications/:id/read` | Idempotently mark one owned notification read | Bearer JWT | Yes |
 | `PATCH` | `/api/v1/notifications/read-all` | Mark all owned notifications read | Bearer JWT | Yes |
 | `GET` | `/api/v1/analytics/overview` | Gross, refund, and net spending totals with active counts | Bearer JWT | Yes |
 | `GET` | `/api/v1/analytics/trends` | Monthly cash-flow time series with calendar gap-filling | Bearer JWT | Yes |
-| `GET` | `/api/v1/analytics/categories` | Category spending breakdown with refunds and % of gross | Bearer JWT | Yes |
+| `GET` | `/api/v1/analytics/categories` | Category spending from `monthly_spend_by_category`; `minAmount` filters with `HAVING` | Bearer JWT | Yes |
 | `GET` | `/api/v1/analytics/subscriptions` | Subscription spending aggregates with server pagination | Bearer JWT | Yes |
 | `GET` | `/api/v1/analytics/top-subscriptions` | Ranked top subscriptions by spending with limit control | Bearer JWT | Yes |
 | `GET` | `/api/v1/analytics/billing-cycles` | Spending distribution and counts across billing cycles | Bearer JWT | Yes |
@@ -176,8 +216,9 @@ When PostgreSQL is absent or unavailable, database health safely returns HTTP 50
 NODE_ENV=development
 PORT=5000
 CORS_ORIGIN=http://localhost:5173
-DATABASE_URL=postgresql://spendwise_app:YOUR_URL_ENCODED_PASSWORD@localhost:5432/spendwise_dev
-TEST_DATABASE_URL=postgresql://spendwise_app:YOUR_URL_ENCODED_PASSWORD@localhost:5432/spendwise_test
+DATABASE_URL=postgresql://ssm:YOUR_PASSWORD@localhost:5434/smart_subscription
+TEST_DATABASE_URL=postgresql://ssm:YOUR_PASSWORD@localhost:5434/smart_subscription_test
+DATABASE_POOL_MAX=20
 ALLOW_DEMO_SEED=false
 
 # Stage 4 Authentication Configuration
@@ -191,7 +232,7 @@ REMINDER_INTERVAL_MINUTES=60
 REMINDER_BATCH_SIZE=500
 ```
 
-`TEST_DATABASE_URL` is used only by integration tests. Demo seed additionally requires `NODE_ENV=development`, `ALLOW_DEMO_SEED=true`, and a connection to exactly `spendwise_dev`. Client-side `VITE_` values are public and must never contain secrets.
+`TEST_DATABASE_URL` is used only by integration tests. Demo seed additionally requires `NODE_ENV=development`, `ALLOW_DEMO_SEED=true`, and a connection to the `smart_subscription` development database. Client-side `VITE_` values are public and must never contain secrets.
 
 ## Frontend
 

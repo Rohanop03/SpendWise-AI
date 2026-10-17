@@ -160,6 +160,7 @@ export function TopSubscriptionsCard({
                 <div className="min-w-0">
                   <Link
                     className="block truncate text-sm font-bold hover:underline"
+                    title={sub.serviceName}
                     to={`/subscriptions/${sub.subscriptionId}`}
                   >
                     {sub.serviceName}
@@ -537,10 +538,7 @@ export function BillingCycleDistribution({ billingCycles }) {
               <div className="flex justify-between gap-2">
                 <dt className="text-(--graphite)">Subscriptions:</dt>
                 <dd className="font-bold">
-                  {cycle.subscriptionCount}{' '}
-                  <span className="font-normal text-(--graphite)">
-                    
-                  </span>
+                  {cycle.subscriptionCount} <span className="font-normal text-(--graphite)"></span>
                 </dd>
               </div>
               <div className="flex justify-between gap-2">

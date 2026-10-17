@@ -9,18 +9,9 @@ import { assertDemoSeedAllowed } from '../db/seeds/demo.js';
 import { createDatabase } from '../src/config/db.js';
 import config from '../src/config/env.js';
 import { defaultMigrationsDirectory, runMigrations } from '../src/db/migrationRunner.js';
+import { allMigrationIds } from './helpers/migrations.js';
 
 const expectedTestDatabaseName = 'smart_subscription_test';
-const allMigrations = [
-  '001_initial_schema',
-  '002_auth_sessions',
-  '003_notification_target_dates',
-  '004_ai_cost_optimization',
-  '005_advanced_dbms',
-  '006_spec_schema_alignment',
-  '007_spec_db_objects',
-  '008_drop_recommendation_subscriptions',
-];
 
 async function expectPostgresError(promise, expectedCode, expectedConstraint) {
   const expectedCodes = Array.isArray(expectedCode) ? expectedCode : [expectedCode];
@@ -98,7 +89,7 @@ if (!config.testDatabaseUrl) {
       });
 
       const migrationResult = await runMigrations({ database });
-      assert.deepEqual(migrationResult.applied, allMigrations);
+      assert.deepEqual(migrationResult.applied, allMigrationIds);
     });
 
     beforeEach(async () => {
@@ -337,7 +328,11 @@ if (!config.testDatabaseUrl) {
         userId,
       });
       await insertSubscription(database, { categoryId, serviceName: 'Second', userId });
-      await insertSubscription(database, { categoryId, serviceName: 'Other', userId: secondUserId });
+      await insertSubscription(database, {
+        categoryId,
+        serviceName: 'Other',
+        userId: secondUserId,
+      });
 
       await database.query(
         `
@@ -408,7 +403,7 @@ if (!config.testDatabaseUrl) {
     it('tracks migrations, skips reruns, and rolls back an invalid migration', async () => {
       const secondRun = await runMigrations({ database });
       assert.deepEqual(secondRun.applied, []);
-      assert.deepEqual(secondRun.skipped, allMigrations);
+      assert.deepEqual(secondRun.skipped, allMigrationIds);
 
       const initialTracking = await database.query(
         `SELECT checksum FROM schema_migrations WHERE migration_id = $1`,

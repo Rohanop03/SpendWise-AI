@@ -9,7 +9,8 @@
 
 @theme {
   --font-sans: 'Manjari', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  /* Calligraphy accent: a few display words only, never body text or controls. */
+  --font-script: 'Pinyon Script', 'Snell Roundhand', 'Apple Chancery', cursive;
 
   --color-canvas: #e8e8eb;
   --color-surface: #efeff2;
@@ -171,10 +172,23 @@
 
 @layer components {
   /* ── Typography helpers ─────────────────────────────────────────────────── */
+  /* Figures in the UI face with tabular digits, so columns of amounts still line up. */
   .num {
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.01em;
+  }
+
+  /* Calligraphic accent word inside a headline (e.g. <em className="script">forgot</em>).
+     Script faces read smaller and sit lower than sans, so it is scaled and nudged. */
+  .script {
+    font-family: var(--font-script);
+    font-style: normal;
+    font-weight: 400;
+    font-size: 1.18em;
+    letter-spacing: 0;
+    line-height: 0.9;
+    padding-inline: 0.04em 0.12em;
   }
 
   .display-num {
@@ -185,9 +199,9 @@
   }
 
   .eyebrow {
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-size: 0.72rem;
-    font-weight: 500;
+    font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--graphite);
@@ -516,9 +530,9 @@
     background: var(--surface);
     padding: 0.75rem 1rem;
     color: var(--graphite);
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-size: 0.7rem;
-    font-weight: 500;
+    font-weight: 700;
     letter-spacing: 0.06em;
     text-align: left;
     text-transform: uppercase;
@@ -586,8 +600,9 @@
   /* ── Charts ───────────────────────────────────────────────────────────── */
   .chart-root .recharts-cartesian-axis-tick-value {
     fill: var(--graphite);
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-size: 11px;
+    font-variant-numeric: tabular-nums;
   }
 
   .chart-root .recharts-cartesian-axis-line,

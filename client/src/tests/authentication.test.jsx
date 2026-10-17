@@ -38,7 +38,7 @@ vi.mock('../api/notifications.js', () => ({
 const userFixture = {
   accountStatus: 'active',
   createdAt: '2026-10-15T00:00:00.000Z',
-  displayName: 'Test Account',
+  name: 'Test Account',
   email: 'test@example.invalid',
   id: '1',
   updatedAt: '2026-10-15T00:00:00.000Z',
@@ -164,7 +164,7 @@ describe('frontend authentication', () => {
   it('updates the authenticated profile UI', async () => {
     const user = userEvent.setup();
     mocks.restoreSession.mockResolvedValue({ accessToken: 'access-token', user: userFixture });
-    mocks.updateProfile.mockResolvedValue({ ...userFixture, displayName: 'Updated Name' });
+    mocks.updateProfile.mockResolvedValue({ ...userFixture, name: 'Updated Name' });
     renderApp('/account');
 
     const displayName = await screen.findByDisplayValue('Test Account');
@@ -172,9 +172,7 @@ describe('frontend authentication', () => {
     await user.type(displayName, 'Updated Name');
     await user.click(screen.getByRole('button', { name: 'Save profile' }));
 
-    await waitFor(() =>
-      expect(mocks.updateProfile).toHaveBeenCalledWith({ displayName: 'Updated Name' }),
-    );
+    await waitFor(() => expect(mocks.updateProfile).toHaveBeenCalledWith({ name: 'Updated Name' }));
     expect(screen.getByText('Profile updated.')).toBeInTheDocument();
   });
 });

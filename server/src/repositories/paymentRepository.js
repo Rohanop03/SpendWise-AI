@@ -175,7 +175,14 @@ export function createPaymentRepository(database) {
         : null;
     },
 
-    async listPayments({ client = database, limit = 10, offset = 0, sortBy = 'paymentDate', sortOrder = 'desc', ...filters }) {
+    async listPayments({
+      client = database,
+      limit = 10,
+      offset = 0,
+      sortBy = 'paymentDate',
+      sortOrder = 'desc',
+      ...filters
+    }) {
       const { parameters, where } = buildFilters(filters);
       const sortColumn = sortColumnMap[sortBy] || 'p.payment_date';
       const order = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';

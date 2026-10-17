@@ -35,27 +35,25 @@ vi.mock('../api/recommendations.js', () => ({
 }));
 
 const recommendation = {
-  confidence: 'high',
   currencyCode: 'USD',
-  estimatedSavings: '6.00',
-  evidence: { limitation: 'This is hypothetical.', savingsSubscriptionId: '2' },
-  explanation: 'Two current subscriptions use the same normalized custom name.',
+  generatedDate: '2026-10-16T00:00:00.000Z',
   id: '9',
-  priority: 'high',
-  savingsPeriod: 'monthly',
-  status: 'active',
-  subscriptions: [
-    {
-      billingCycle: 'monthly',
-      currencyCode: 'USD',
-      id: '2',
-      price: '6.00',
-      serviceName: 'Example',
-    },
-  ],
-  suggestedAction: 'Review both subscriptions.',
-  title: 'Possible duplicate subscriptions',
-  type: 'exact_duplicate',
+  potentialSavings: '6.00',
+  priority: 'medium',
+  recommendationText:
+    'You have 2 active Entertainment subscriptions; cancelling Example would save USD 6.00/month',
+  rule: 'duplicate_category',
+  status: 'Pending',
+  subscription: {
+    billingCycle: 'Monthly',
+    cost: 6,
+    currencyCode: 'USD',
+    id: '2',
+    serviceName: 'Example',
+  },
+  subscriptionId: '2',
+  suggestedAction: 'Keep the one you use most and cancel the others.',
+  title: 'Duplicate category',
 };
 
 function page(items = [recommendation]) {
@@ -80,14 +78,14 @@ describe('Recommendation Center', () => {
     vi.clearAllMocks();
     mocks.restoreSession.mockResolvedValue({
       accessToken: 'token',
-      user: { displayName: 'Optimizer', id: '1' },
+      user: { id: '1', name: 'Optimizer' },
     });
     mocks.getUnreadNotificationCount.mockResolvedValue(0);
     mocks.getRecommendations.mockResolvedValue(page());
     mocks.getRecommendationSummary.mockResolvedValue({
-      activeCount: 1,
-      highPriorityCount: 1,
-      hypotheticalMonthlySavings: [{ amount: '6.00', currencyCode: 'USD' }],
+      highPriorityCount: 0,
+      pendingCount: 1,
+      potentialMonthlySavings: [{ amount: '6.00', currencyCode: 'USD' }],
     });
     mocks.generateRecommendations.mockResolvedValue({ generatedCount: 1 });
     mocks.updateRecommendation.mockResolvedValue({ recommendation });
@@ -97,14 +95,14 @@ describe('Recommendation Center', () => {
     });
   });
 
-  it('renders priority, evidence, exact currency, assumptions, and related navigation', async () => {
+  it('renders the rule, text, savings, and the linked subscription', async () => {
     renderPage();
     expect(
       await screen.findByRole('heading', { name: 'Recommendation Center' }),
     ).toBeInTheDocument();
-    expect(await screen.findByText('Possible duplicate subscriptions')).toBeInTheDocument();
-    expect(screen.getByText(/6\.00 per monthly \(hypothetical\)/)).toBeInTheDocument();
-    expect(screen.getByText(/Limitation: This is hypothetical/)).toBeInTheDocument();
+    expect(await screen.findByText('Duplicate category')).toBeInTheDocument();
+    expect(screen.getByText(/cancelling Example would save USD 6\.00\/month/)).toBeInTheDocument();
+    expect(screen.getByText(/6\.00 per month/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Example/ })).toHaveAttribute(
       'href',
       '/subscriptions/2',
@@ -120,20 +118,20 @@ describe('Recommendation Center', () => {
     expect(await screen.findByText(/1 current recommendation evaluated/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Explain this' }));
     expect(await screen.findByText(/Safe deterministic detail/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Dismiss' }));
-    expect(mocks.updateRecommendation).toHaveBeenCalledWith('9', 'dismissed');
+    await user.click(screen.getByRole('button', { name: 'Mark reviewed' }));
+    expect(mocks.updateRecommendation).toHaveBeenCalledWith('9', 'Reviewed');
   });
 
   it('supports empty, loading, error, status, and currency states', async () => {
     const user = userEvent.setup();
     mocks.getRecommendations.mockResolvedValueOnce(page([]));
     renderPage();
-    expect(await screen.findByText('No active recommendations')).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText(/Status/), 'dismissed');
+    expect(await screen.findByText('No Pending recommendations')).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText(/Status/), 'Dismissed');
     await user.type(screen.getByLabelText(/Currency/), 'inr');
     await waitFor(() =>
       expect(mocks.getRecommendations).toHaveBeenLastCalledWith(
-        expect.objectContaining({ currencyCode: 'INR', status: 'dismissed' }),
+        expect.objectContaining({ currencyCode: 'INR', status: 'Dismissed' }),
       ),
     );
   });

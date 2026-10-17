@@ -51,7 +51,11 @@ function PaymentRow({ payment }) {
       data-cursor="OPEN"
     >
       <div className="min-w-0">
-        <Link className="block truncate font-bold hover:underline" to={`/payments/${payment.id}`}>
+        <Link
+          className="block truncate font-bold hover:underline"
+          title={name}
+          to={`/payments/${payment.id}`}
+        >
           {name}
         </Link>
         {payment.planName && (

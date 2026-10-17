@@ -1,7 +1,8 @@
 function deterministicExplanation(recommendation) {
-  const savings = Number(recommendation.potentialSavings) > 0
-    ? ` The estimated saving is ${recommendation.currencyCode} ${recommendation.potentialSavings} per month; it is not guaranteed.`
-    : ' No numeric saving is claimed because the available records do not support one.';
+  const savings =
+    Number(recommendation.potentialSavings) > 0
+      ? ` The estimated saving is ${recommendation.currencyCode} ${recommendation.potentialSavings} per month; it is not guaranteed.`
+      : ' No numeric saving is claimed because the available records do not support one.';
   return `${recommendation.recommendationText}.${savings} ${recommendation.suggestedAction}`;
 }
 

@@ -159,12 +159,24 @@ export const cancelSchema = z
   .superRefine((data, context) => {
     if (!data.includePayment) return;
     if (!(Number.isFinite(Number(data.amount)) && Number(data.amount) > 0)) {
-      context.addIssue({ code: 'custom', message: 'Amount must be greater than 0.', path: ['amount'] });
+      context.addIssue({
+        code: 'custom',
+        message: 'Amount must be greater than 0.',
+        path: ['amount'],
+      });
     } else if (!twoDecimals(data.amount)) {
-      context.addIssue({ code: 'custom', message: 'Amount cannot have more than 2 decimal places.', path: ['amount'] });
+      context.addIssue({
+        code: 'custom',
+        message: 'Amount cannot have more than 2 decimal places.',
+        path: ['amount'],
+      });
     }
     if (!isoDate.test(data.paymentDate)) {
-      context.addIssue({ code: 'custom', message: 'Enter the payment date.', path: ['paymentDate'] });
+      context.addIssue({
+        code: 'custom',
+        message: 'Enter the payment date.',
+        path: ['paymentDate'],
+      });
     }
   });
 

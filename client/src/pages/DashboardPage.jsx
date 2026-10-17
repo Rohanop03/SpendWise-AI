@@ -89,10 +89,7 @@ export default function DashboardPage() {
       summary.completedPaymentCount > 0,
   );
   const showNewUserState =
-    !isLoading &&
-    !widgets.overview.error &&
-    !hasSubscriptions &&
-    !hasHistoricalActivity;
+    !isLoading && !widgets.overview.error && !hasSubscriptions && !hasHistoricalActivity;
 
   const renewals = (widgets.renewals.data?.items || []).filter(
     (item) => !currencyCode || item.currencyCode === currencyCode,

@@ -8,12 +8,17 @@ import { AuthProvider } from '../auth/AuthContext.jsx';
 
 const mocks = vi.hoisted(() => ({
   archiveSubscription: vi.fn(),
+  cancelSubscription: vi.fn(),
   createSubscription: vi.fn(),
+  deleteSubscription: vi.fn(),
   getCategories: vi.fn(),
   getPreferences: vi.fn(),
   getServices: vi.fn(),
   getSubscription: vi.fn(),
+  getSubscriptionHistory: vi.fn(),
+  getSubscriptionPayments: vi.fn(),
   getSubscriptions: vi.fn(),
+  markSubscriptionUsed: vi.fn(),
   restoreSession: vi.fn(),
   restoreSubscription: vi.fn(),
   updateSubscription: vi.fn(),
@@ -32,11 +37,19 @@ vi.mock('../api/catalog.js', () => ({
   getServices: mocks.getServices,
 }));
 
+vi.mock('../api/payments.js', () => ({
+  getSubscriptionPayments: mocks.getSubscriptionPayments,
+}));
+
 vi.mock('../api/subscriptions.js', () => ({
   archiveSubscription: mocks.archiveSubscription,
+  cancelSubscription: mocks.cancelSubscription,
   createSubscription: mocks.createSubscription,
+  deleteSubscription: mocks.deleteSubscription,
   getSubscription: mocks.getSubscription,
+  getSubscriptionHistory: mocks.getSubscriptionHistory,
   getSubscriptions: mocks.getSubscriptions,
+  markSubscriptionUsed: mocks.markSubscriptionUsed,
   restoreSubscription: mocks.restoreSubscription,
   updateSubscription: mocks.updateSubscription,
 }));
@@ -44,7 +57,7 @@ vi.mock('../api/subscriptions.js', () => ({
 const userFixture = {
   accountStatus: 'active',
   createdAt: '2026-10-15T00:00:00.000Z',
-  displayName: 'Test Account',
+  name: 'Test Account',
   email: 'test@example.invalid',
   id: '1',
   updatedAt: '2026-10-15T00:00:00.000Z',
@@ -62,24 +75,22 @@ const servicesFixture = [
 
 const sampleSubscription = {
   archivedAt: null,
-  billingCycle: 'monthly',
+  billingCycle: 'Monthly',
   cancelledAt: null,
   categoryId: '1',
   categoryName: 'Entertainment',
+  cost: 22.99,
   createdAt: '2026-10-15T00:00:00.000Z',
   currencyCode: 'USD',
-  customServiceName: null,
+  daysSinceLastUse: null,
   id: '101',
-  nextRenewalDate: '2026-11-15',
+  lastUsedDate: null,
   notes: '4K family plan',
   planName: 'Premium 4K',
-  price: 22.99,
-  serviceId: '1',
+  renewalDate: '2026-11-15',
   serviceName: 'Netflix',
-  serviceWebsiteUrl: 'https://www.netflix.com',
   startDate: '2026-10-15',
-  status: 'active',
-  trialEndDate: null,
+  status: 'Active',
   updatedAt: '2026-10-15T00:00:00.000Z',
   userId: '1',
 };
@@ -102,6 +113,8 @@ describe('frontend subscription management', () => {
     mocks.getServices.mockResolvedValue(servicesFixture);
     mocks.getPreferences.mockResolvedValue({ preferredCurrency: 'USD' });
     mocks.getSubscription.mockResolvedValue(sampleSubscription);
+    mocks.getSubscriptionHistory.mockResolvedValue([]);
+    mocks.getSubscriptionPayments.mockResolvedValue({ items: [] });
   });
 
   it('renders subscriptions page with table, cards, and KPI statistics', async () => {
@@ -181,23 +194,25 @@ describe('frontend subscription management', () => {
     ).toBeInTheDocument();
 
     await user.type(await screen.findByLabelText('Plan / Tier (Optional)'), 'Family 4K');
-    await user.type(screen.getByLabelText('Price'), '19.99');
-    await user.type(screen.getByLabelText('Next Renewal'), '2026-11-20');
+    await user.type(screen.getByLabelText('Cost'), '19.99');
+    await user.type(screen.getByLabelText('Renewal Date'), '2026-11-20');
 
     await user.click(screen.getByRole('button', { name: 'Create Subscription' }));
 
     await waitFor(() => {
       expect(mocks.createSubscription).toHaveBeenCalledWith(
         expect.objectContaining({
-          billingCycle: 'monthly',
+          billingCycle: 'Monthly',
           categoryId: '1',
+          cost: 19.99,
           currencyCode: 'USD',
-          nextRenewalDate: '2026-11-20',
           planName: 'Family 4K',
-          price: 19.99,
-          serviceId: '1',
-          status: 'active',
+          renewalDate: '2026-11-20',
+          serviceName: 'Netflix',
         }),
+      );
+      expect(mocks.createSubscription).toHaveBeenCalledWith(
+        expect.not.objectContaining({ status: expect.anything() }),
       );
     });
   });
@@ -206,9 +221,7 @@ describe('frontend subscription management', () => {
     const user = userEvent.setup();
     mocks.createSubscription.mockResolvedValue({
       ...sampleSubscription,
-      customServiceName: 'Campus Recreation Gym',
       id: '103',
-      serviceId: null,
       serviceName: 'Campus Recreation Gym',
     });
 
@@ -222,27 +235,31 @@ describe('frontend subscription management', () => {
     await user.click(await screen.findByRole('button', { name: 'Custom Service' }));
 
     await user.type(screen.getByLabelText('Custom Service Name'), 'Campus Recreation Gym');
-    await user.type(screen.getByLabelText('Price'), '50.00');
-    await user.type(screen.getByLabelText('Next Renewal'), '2026-12-01');
+    await user.type(screen.getByLabelText('Cost'), '50.00');
+    await user.type(screen.getByLabelText('Renewal Date'), '2026-12-01');
 
     await user.click(screen.getByRole('button', { name: 'Create Subscription' }));
 
     await waitFor(() => {
       expect(mocks.createSubscription).toHaveBeenCalledWith(
         expect.objectContaining({
-          customServiceName: 'Campus Recreation Gym',
-          price: 50,
+          cost: 50,
+          serviceName: 'Campus Recreation Gym',
         }),
       );
     });
   });
 
-  it('renders subscription details, pauses status, and handles archival flow', async () => {
+  it('renders subscription details, cancels with a final payment, and archives', async () => {
     const user = userEvent.setup();
     mocks.getSubscription.mockResolvedValue(sampleSubscription);
-    mocks.updateSubscription.mockResolvedValue({
-      ...sampleSubscription,
-      status: 'paused',
+    mocks.cancelSubscription.mockResolvedValue({
+      payment: { amount: '22.99', currencyCode: 'USD', id: '9', paymentDate: '2026-10-16' },
+      subscription: {
+        ...sampleSubscription,
+        cancelledAt: '2026-10-16T00:00:00Z',
+        status: 'Cancelled',
+      },
     });
     mocks.archiveSubscription.mockResolvedValue({
       ...sampleSubscription,
@@ -254,13 +271,20 @@ describe('frontend subscription management', () => {
     expect(await screen.findByRole('heading', { name: 'Netflix' })).toBeInTheDocument();
     expect(screen.getByText('4K family plan')).toBeInTheDocument();
 
-    // Pause subscription
-    const pauseBtn = screen.getByRole('button', { name: 'Pause' });
-    await user.click(pauseBtn);
+    // Cancel with a final payment: one API call, one transaction on the server.
+    await user.click(screen.getByRole('button', { name: 'Cancel subscription' }));
+    await user.click(screen.getByLabelText('Record a final payment'));
+    await user.type(screen.getByLabelText('Amount (USD)'), '22.99');
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel subscription' }));
 
     await waitFor(() => {
-      expect(mocks.updateSubscription).toHaveBeenCalledWith('101', { status: 'paused' });
+      expect(mocks.cancelSubscription).toHaveBeenCalledWith(
+        '101',
+        expect.objectContaining({ amount: '22.99' }),
+      );
     });
+    expect(await screen.findByRole('button', { name: 'Reactivate' })).toBeInTheDocument();
 
     // Open archive modal
     const archiveBtn = screen.getByRole('button', { name: 'Archive' });
@@ -277,19 +301,19 @@ describe('frontend subscription management', () => {
     });
   });
 
-  it('renders edit subscription page, modifies price, and saves', async () => {
+  it('renders edit subscription page, modifies cost, and saves', async () => {
     const user = userEvent.setup();
     mocks.getSubscription.mockResolvedValue(sampleSubscription);
     mocks.updateSubscription.mockResolvedValue({
       ...sampleSubscription,
-      price: 24.99,
+      cost: 24.99,
     });
 
     renderApp('/subscriptions/101/edit');
 
     expect(await screen.findByRole('heading', { name: 'Edit Subscription' })).toBeInTheDocument();
 
-    const priceInput = await screen.findByLabelText('Price');
+    const priceInput = await screen.findByLabelText('Cost');
     expect(priceInput).toHaveValue(22.99);
 
     await user.clear(priceInput);
@@ -301,9 +325,45 @@ describe('frontend subscription management', () => {
       expect(mocks.updateSubscription).toHaveBeenCalledWith(
         '101',
         expect.objectContaining({
-          price: 24.99,
+          cost: 24.99,
+          serviceName: 'Netflix',
+          status: 'Active',
         }),
       );
     });
+  });
+
+  it('deletes a subscription after confirmation', async () => {
+    const user = userEvent.setup();
+    mocks.deleteSubscription.mockResolvedValue();
+    mocks.getSubscriptions.mockResolvedValue({
+      items: [],
+      pagination: { limit: 10, page: 1, totalCount: 0, totalPages: 1 },
+    });
+
+    renderApp('/subscriptions/101');
+    await screen.findByRole('heading', { name: 'Netflix' });
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await user.click(screen.getByRole('button', { name: 'Delete permanently' }));
+
+    await waitFor(() => expect(mocks.deleteSubscription).toHaveBeenCalledWith('101'));
+    expect(await screen.findByRole('heading', { name: 'My Subscriptions' })).toBeInTheDocument();
+  });
+
+  it('marks a subscription as used today', async () => {
+    const user = userEvent.setup();
+    mocks.markSubscriptionUsed.mockResolvedValue({
+      ...sampleSubscription,
+      daysSinceLastUse: 0,
+      lastUsedDate: '2026-10-16',
+    });
+
+    renderApp('/subscriptions/101');
+    await screen.findByRole('heading', { name: 'Netflix' });
+    expect(screen.getByText('Not recorded')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Mark as used today' }));
+
+    await waitFor(() => expect(mocks.markSubscriptionUsed).toHaveBeenCalledWith('101'));
+    expect(await screen.findByText('today')).toBeInTheDocument();
   });
 });

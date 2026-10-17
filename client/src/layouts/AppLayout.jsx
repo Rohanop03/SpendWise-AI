@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../auth/useAuth.js';
 import BrandMark from '../layout/BrandMark.jsx';
@@ -12,6 +12,32 @@ import BlobField from '../ui/BlobField.jsx';
 import { Notice } from '../ui/Feedback.jsx';
 import { PillLink } from '../ui/Pill.jsx';
 import { ErrorBoundary } from '../ui/SystemStates.jsx';
+
+const publicLinks = [
+  ['/', 'Home'],
+  ['/how-it-works', 'How it works'],
+];
+
+/** Landing-page links; the current page is shown pressed. */
+function PublicLinks({ className = '' }) {
+  return (
+    <ul className={`flex items-center gap-1 ${className}`}>
+      {publicLinks.map(([to, label]) => (
+        <li key={to}>
+          <NavLink
+            className={({ isActive }) =>
+              `pill pill-sm !px-3.5 ${isActive ? 'neu-pressed depth-1 text-(--ink)' : 'pill-ghost text-(--graphite)'}`
+            }
+            end
+            to={to}
+          >
+            {label}
+          </NavLink>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 // Loaded on first use only, so dialog + search code stays off the critical path.
 const CommandPalette = lazy(() => import('../layout/CommandPalette.jsx'));
@@ -99,6 +125,9 @@ function AppLayout() {
           <Link className="shrink-0 rounded-2xl" to="/">
             <BrandMark subtitle="Smart subscription manager" />
           </Link>
+          <nav aria-label="Site" className="hidden md:block">
+            <PublicLinks />
+          </nav>
           <nav aria-label="Account navigation" className="flex items-center gap-1.5 sm:gap-2">
             <Link className="pill pill-ghost !px-3 sm:!px-4" to="/login">
               Login
@@ -108,6 +137,10 @@ function AppLayout() {
             </PillLink>
           </nav>
         </div>
+        {/* Phones: page links on their own row so the header never overflows. */}
+        <nav aria-label="Site" className="border-t border-(--hairline) px-4 py-2 md:hidden">
+          <PublicLinks className="justify-center" />
+        </nav>
       </header>
       <main id="main" tabIndex={-1}>
         {logoutNotice && (

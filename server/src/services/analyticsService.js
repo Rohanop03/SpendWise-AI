@@ -131,7 +131,14 @@ export function createAnalyticsService(analyticsRepository) {
       };
     },
 
-    async getCategoryAnalytics({ categoryId, currencyCode, endDate, minAmount, startDate, userId }) {
+    async getCategoryAnalytics({
+      categoryId,
+      currencyCode,
+      endDate,
+      minAmount,
+      startDate,
+      userId,
+    }) {
       const range = toMonthRange({ endDate, startDate });
       const rows = await analyticsRepository.getCategoryAnalytics({
         categoryId,

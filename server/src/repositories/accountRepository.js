@@ -153,9 +153,10 @@ export function createAccountRepository(database) {
     },
 
     async getTimezone(userId, client = database) {
-      const result = await client.query('SELECT timezone FROM user_preferences WHERE user_id = $1', [
-        userId,
-      ]);
+      const result = await client.query(
+        'SELECT timezone FROM user_preferences WHERE user_id = $1',
+        [userId],
+      );
       return result.rows[0]?.timezone ?? 'UTC';
     },
 

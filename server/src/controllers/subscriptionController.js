@@ -3,7 +3,10 @@ export function createSubscriptionController(subscriptionService) {
 
   return {
     async archive(request, response) {
-      const subscription = await subscriptionService.archiveSubscription(request.user.id, id(request));
+      const subscription = await subscriptionService.archiveSubscription(
+        request.user.id,
+        id(request),
+      );
       response.status(200).json({ subscription });
     },
 
@@ -61,7 +64,10 @@ export function createSubscriptionController(subscriptionService) {
     },
 
     async restore(request, response) {
-      const subscription = await subscriptionService.restoreSubscription(request.user.id, id(request));
+      const subscription = await subscriptionService.restoreSubscription(
+        request.user.id,
+        id(request),
+      );
       response.status(200).json({ subscription });
     },
 

@@ -1,32 +1,37 @@
-import { getUserToday } from '../utils/reminderDates.js';
-
-export function createBillingService({ billingRepository, clock = () => new Date() }) {
-  // "Today" is the user's local date (same definition as the reminder worker).
-  async function todayFor(userId) {
-    return getUserToday(await billingRepository.getTimezone(userId), clock());
-  }
-
+// "Today" is the user's local date (same definition as the reminder worker); the repository
+// computes it inside each query from user_preferences.timezone, so it adds no round trip.
+export function createBillingService({ billingRepository }) {
   return {
     async getUpcomingRenewals(userId, { days = 30 } = {}) {
-      const today = await todayFor(userId);
       const [items, overdue] = await Promise.all([
-        billingRepository.getUpcomingRenewals({ days, today, userId }),
-        billingRepository.getOverdueRenewals({ today, userId }),
+        billingRepository.getUpcomingRenewals({ days, userId }),
+        billingRepository.getOverdueRenewals({ userId }),
       ]);
+      const today =
+        items[0]?.today ?? overdue[0]?.today ?? (await billingRepository.getToday(userId));
 
-      return { daysWindow: days, items, overdue, today, total: items.length };
+      return {
+        daysWindow: days,
+        items: items.map(strip),
+        overdue: overdue.map(strip),
+        today,
+        total: items.length,
+      };
     },
 
     async getBillingOverview(userId, { days = 30 } = {}) {
-      const today = await todayFor(userId);
       const [upcomingRenewals, overdueRenewals, recurringCosts] = await Promise.all([
-        billingRepository.getUpcomingRenewals({ days, today, userId }),
-        billingRepository.getOverdueRenewals({ today, userId }),
+        billingRepository.getUpcomingRenewals({ days, userId }),
+        billingRepository.getOverdueRenewals({ userId }),
         billingRepository.getRecurringCosts({ userId }),
       ]);
+      const today =
+        upcomingRenewals[0]?.today ??
+        overdueRenewals[0]?.today ??
+        (await billingRepository.getToday(userId));
 
       return {
-        overdueRenewals,
+        overdueRenewals: overdueRenewals.map(strip),
         recurringCosts,
         stats: {
           activeCount: recurringCosts.reduce((sum, row) => sum + row.subscriptionCount, 0),
@@ -35,8 +40,12 @@ export function createBillingService({ billingRepository, clock = () => new Date
           upcomingCount: upcomingRenewals.length,
         },
         today,
-        upcomingRenewals,
+        upcomingRenewals: upcomingRenewals.map(strip),
       };
     },
   };
+}
+
+function strip({ today: _today, ...item }) {
+  return item;
 }

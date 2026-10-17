@@ -51,7 +51,8 @@ function queryFor(activeTab, filters, pagination) {
 
 export default function SubscriptionsPage() {
   const { notify } = useToast();
-  const phone = useMediaQuery('(max-width: 767px)');
+  // Below 1280px the seven-column table would not fit beside the rail; cards are the default.
+  const compact = useMediaQuery('(max-width: 1279px)');
   const [view, setView] = useState(null);
   const [activeTab, setActiveTab] = useState('active');
   const [categories, setCategories] = useState([]);
@@ -69,7 +70,7 @@ export default function SubscriptionsPage() {
   const [filters, setFilters] = useState(initialFilters);
   const [searchInput, setSearchInput] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
-  const currentView = view || (phone ? 'cards' : 'table');
+  const currentView = view || (compact ? 'cards' : 'table');
 
   useEffect(() => {
     getCategories()
@@ -163,10 +164,10 @@ export default function SubscriptionsPage() {
 
   const isFiltered = Boolean(
     filters.search ||
-      filters.status ||
-      filters.categoryId ||
-      filters.billingCycle ||
-      filters.unusedDays,
+    filters.status ||
+    filters.categoryId ||
+    filters.billingCycle ||
+    filters.unusedDays,
   );
 
   // Estimated monthly cost of the visible Active plans, kept per currency (never mixed).

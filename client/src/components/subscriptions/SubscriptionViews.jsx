@@ -32,6 +32,10 @@ export function RenewalCell({ subscription }) {
   );
 }
 
+// Secondary columns shown only on very wide screens; cards and details always show them.
+const wideOnly = new Set(['category', 'cycle']);
+const wideOnlyClass = (id) => (wideOnly.has(id) ? 'hidden 2xl:table-cell' : '');
+
 const sortable = {
   renewalDate: 'renewalDate',
   cost: 'cost',
@@ -115,30 +119,38 @@ export function SubscriptionTable({ onArchiveClick, onSort, sortBy, sortOrder, s
         cell: ({ row }) => {
           const sub = row.original;
           return (
-            <div className="flex justify-end gap-1.5">
+            // Icon-only below 2xl so the row fits without hidden horizontal scrolling;
+            // the accessible name and tooltip always carry the full action.
+            <div className="flex justify-end gap-1.5 whitespace-nowrap">
               <PillLink
                 aria-label={`Edit ${sub.serviceName}`}
+                icon="edit"
                 size="sm"
+                title="Edit"
                 to={`/subscriptions/${sub.id}/edit`}
               >
-                Edit
+                <span className="hidden 2xl:inline">Edit</span>
               </PillLink>
               <PillLink
                 aria-label={`View ${sub.serviceName}`}
+                icon="arrowUpRight"
                 size="sm"
+                title="View"
                 to={`/subscriptions/${sub.id}`}
                 variant="ink"
               >
-                View
+                <span className="hidden 2xl:inline">View</span>
               </PillLink>
               {onArchiveClick && !sub.archivedAt && (
                 <button
                   aria-label={`Archive ${sub.serviceName}`}
                   className="pill pill-ghost pill-sm"
                   onClick={() => onArchiveClick(sub)}
+                  title="Archive"
                   type="button"
                 >
-                  Archive
+                  <Icon className="size-[1.1em] shrink-0" name="stack" />
+                  <span className="hidden 2xl:inline">Archive</span>
                 </button>
               )}
             </div>
@@ -177,7 +189,7 @@ export function SubscriptionTable({ onArchiveClick, onSort, sortBy, sortOrder, s
                     aria-sort={
                       active ? (sortOrder === 'asc' ? 'ascending' : 'descending') : undefined
                     }
-                    className={`${index === 0 ? 'sticky-col' : ''} ${header.column.id === 'cost' ? '!text-right' : ''}`}
+                    className={`${index === 0 ? 'sticky-col' : ''} ${header.column.id === 'cost' ? '!text-right' : ''} ${wideOnlyClass(header.column.id)}`}
                     key={header.id}
                     scope="col"
                   >
@@ -217,7 +229,10 @@ export function SubscriptionTable({ onArchiveClick, onSort, sortBy, sortOrder, s
                 transition={{ duration: 0.25 }}
               >
                 {row.getVisibleCells().map((cell, index) => (
-                  <td className={index === 0 ? 'sticky-col' : ''} key={cell.id}>
+                  <td
+                    className={`${index === 0 ? 'sticky-col' : ''} ${wideOnlyClass(cell.column.id)}`}
+                    key={cell.id}
+                  >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}

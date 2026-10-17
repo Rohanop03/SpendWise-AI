@@ -9,15 +9,24 @@ export function initials(name = '') {
   );
 }
 
-/** Authenticated navigation, in rail order. `index` feeds the mono page index. */
+/**
+ * Authenticated navigation, in rail order. `index` feeds the mono page index; `short` is the
+ * label shown where space is tight (compact rail, mobile dock).
+ */
 export const navItems = [
   { icon: 'dashboard', index: '01', label: 'Dashboard', to: '/dashboard' },
   { icon: 'stack', index: '02', label: 'Subscriptions', short: 'Subs', to: '/subscriptions' },
   { icon: 'receipt', index: '03', label: 'Payments', to: '/payments' },
   { icon: 'calendar', index: '04', label: 'Billing', to: '/billing' },
   { icon: 'chart', index: '05', label: 'Analytics', to: '/analytics' },
-  { icon: 'spark', index: '06', label: 'Recommendations', to: '/recommendations' },
-  { icon: 'bell', index: '07', label: 'Notifications', to: '/notifications' },
+  {
+    icon: 'spark',
+    index: '06',
+    label: 'Recommendations',
+    short: 'Insights',
+    to: '/recommendations',
+  },
+  { icon: 'bell', index: '07', label: 'Notifications', short: 'Alerts', to: '/notifications' },
   { icon: 'user', index: '08', label: 'Account', to: '/account' },
   { icon: 'settings', index: '09', label: 'Settings', to: '/settings' },
 ];

@@ -61,7 +61,7 @@ vi.mock('../api/billing.js', () => ({
 const userFixture = {
   accountStatus: 'active',
   createdAt: '2026-10-15T00:00:00.000Z',
-  displayName: 'Test Account',
+  name: 'Test Account',
   email: 'test@example.invalid',
   id: '1',
   updatedAt: '2026-10-15T00:00:00.000Z',
@@ -69,26 +69,26 @@ const userFixture = {
 
 const subscriptionsFixture = [
   {
-    billingCycle: 'monthly',
+    billingCycle: 'Monthly',
     currencyCode: 'INR',
     id: '1',
-    nextRenewalDate: '2026-11-01',
+    renewalDate: '2026-11-01',
     planName: 'Standard',
-    price: 499,
+    cost: 499,
     serviceName: 'Netflix',
     startDate: '2026-10-01',
-    status: 'active',
+    status: 'Active',
   },
   {
-    billingCycle: 'yearly',
+    billingCycle: 'Yearly',
     currencyCode: 'USD',
     id: '2',
-    nextRenewalDate: '2027-10-01',
+    renewalDate: '2027-10-01',
     planName: 'Pro',
-    price: 120,
+    cost: 120,
     serviceName: 'Notion',
     startDate: '2026-10-01',
-    status: 'active',
+    status: 'Active',
   },
 ];
 
@@ -186,11 +186,14 @@ describe('frontend payment tracking and billing management', () => {
     const user = userEvent.setup();
 
     mocks.createPayment.mockResolvedValue({
-      amount: '499.00',
-      currencyCode: 'INR',
-      id: '103',
-      paymentDate: '2026-10-15',
-      paymentStatus: 'completed',
+      payment: {
+        amount: '499.00',
+        currencyCode: 'INR',
+        id: '103',
+        paymentDate: '2026-10-15',
+        paymentStatus: 'completed',
+      },
+      subscription: { id: '1', renewalDate: '2026-12-01' },
     });
 
     mocks.getPayment.mockResolvedValue({
@@ -345,13 +348,13 @@ describe('frontend payment tracking and billing management', () => {
     mocks.getBillingOverview.mockResolvedValue({
       overdueRenewals: [
         {
-          billingCycle: 'monthly',
+          billingCycle: 'Monthly',
           currencyCode: 'INR',
           daysUntilRenewal: -5,
           isOverdue: true,
-          nextRenewalDate: '2026-10-10',
+          renewalDate: '2026-10-10',
           overdueNotice: 'Renewal date passed — payment status unconfirmed',
-          price: '499.00',
+          cost: '499.00',
           serviceName: 'Gym Membership',
           subscriptionId: '5',
         },
@@ -364,17 +367,16 @@ describe('frontend payment tracking and billing management', () => {
         activeCount: 4,
         overdueCount: 1,
         totalSubscriptions: 4,
-        trialCount: 0,
         upcomingCount: 1,
       },
       upcomingRenewals: [
         {
-          billingCycle: 'monthly',
+          billingCycle: 'Monthly',
           currencyCode: 'INR',
           daysUntilRenewal: 15,
           isOverdue: false,
-          nextRenewalDate: '2026-10-30',
-          price: '499.00',
+          renewalDate: '2026-10-30',
+          cost: '499.00',
           serviceName: 'Netflix',
           subscriptionId: '1',
         },

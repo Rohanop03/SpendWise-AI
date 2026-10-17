@@ -96,8 +96,12 @@ function AccountPage() {
                 {initials(user.name)}
               </span>
               <div className="min-w-0">
-                <p className="truncate text-lg font-bold">{user.name}</p>
-                <p className="truncate text-sm text-soft">{user.email}</p>
+                <p className="truncate text-lg font-bold" title={user.name}>
+                  {user.name}
+                </p>
+                <p className="truncate text-sm text-soft" title={user.email}>
+                  {user.email}
+                </p>
               </div>
             </div>
             {user.createdAt && (

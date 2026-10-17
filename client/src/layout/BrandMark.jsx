@@ -18,7 +18,9 @@ export default function BrandMark({ compact = false, subtitle = 'Subscription cl
         <span className="leading-tight max-[359px]:sr-only">
           <span className="block text-base font-bold tracking-[-0.02em]">SpendWise AI</span>
           {subtitle && (
-            <span className="hidden text-[0.7rem] text-(--graphite) sm:block">{subtitle}</span>
+            <span className="font-script hidden text-[1.05rem] leading-none text-(--graphite) sm:block">
+              {subtitle}
+            </span>
           )}
         </span>
       )}
